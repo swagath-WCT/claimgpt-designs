@@ -16,6 +16,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  X,
   Zap
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
@@ -24,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
+import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -52,15 +54,16 @@ export function DashboardAurora() {
 
       {/* Top Cyber Nav */}
       <header className="relative z-40 sticky top-0 border-b border-cyan-500/20 bg-[#030712]/80 backdrop-blur-xl">
-        <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/20">
-              <Zap className="h-5 w-5 fill-white" />
+        <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/20">
+              <Zap className="h-4 sm:h-5 w-4 sm:w-5 fill-white" />
             </div>
-            <div>
-              <span className="font-display text-lg font-extrabold tracking-tight text-white">ClaimGPT</span>
-              <span className="ml-2 rounded-full bg-cyan-500/20 px-2.5 py-0.5 text-[10px] font-bold text-cyan-300 border border-cyan-500/40 tracking-wider uppercase">
-                Neon Cyber Glass
+            <div className="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+              <span className="font-display text-base sm:text-lg font-extrabold tracking-tight text-white flex-none">ClaimGPT</span>
+              <span className="rounded-full bg-cyan-500/20 px-2 sm:px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-cyan-300 border border-cyan-500/40 tracking-wider uppercase whitespace-nowrap flex-none">
+                <span className="hidden sm:inline">Neon Cyber Glass</span>
+                <span className="sm:hidden">Neon</span>
               </span>
             </div>
           </div>
@@ -81,8 +84,8 @@ export function DashboardAurora() {
               <Bell className="h-5 w-5" />
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400" />
             </button>
-            <Avatar className="h-9 w-9 border border-cyan-500/30">
-              <AvatarFallback className="bg-gradient-to-tr from-cyan-500 to-blue-600 text-xs font-bold text-white">PT</AvatarFallback>
+            <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-cyan-500/30 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
+              <AvatarFallback className="bg-gradient-to-tr from-cyan-500 to-blue-600 text-xs font-bold text-white">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
           </div>
         </div>
@@ -153,10 +156,22 @@ export function DashboardAurora() {
                           )}
                         >
                           <div className="flex items-center justify-between gap-1">
-                            <p className="text-xs font-bold truncate text-white">
+                            <p className="text-xs font-bold truncate text-white min-w-0 flex-1">
                               {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
                             </p>
-                            {isSelected ? <span className="flex h-2 w-2 rounded-full bg-cyan-400 flex-none shadow-sm shadow-cyan-400" /> : null}
+                            <div className="flex items-center gap-1.5 flex-none">
+                              {isSelected ? <span className="flex h-2 w-2 rounded-full bg-cyan-400 flex-none shadow-sm shadow-cyan-400" /> : null}
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => s.deleteClaim(claim.id, e as any)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                                title="Remove claim"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
                           </div>
                           <p className="text-[10px] text-cyan-300/60 mt-1 truncate">
                             ID: {claim.id.slice(0, 8)}...
@@ -348,6 +363,7 @@ export function DashboardAurora() {
                       const isDone = i <= s.stageIndex;
                       return (
                         <div key={p.key} className={cn(
+                        <div key={p.key} className={cn(
                           "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
                           isDone ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-200" : "bg-slate-950/60 border-white/5 text-slate-600"
                         )}>
@@ -384,7 +400,7 @@ export function DashboardAurora() {
                     <div className="space-y-3 rounded-xl border border-cyan-500/20 bg-slate-950/80 p-4">
                       <h3 className="text-xs font-bold text-white uppercase tracking-wider border-b border-cyan-500/20 pb-2">Patient Metadata</h3>
                       
-                      <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div key={`${s.claimId || 'default-aurora'}-${s.previewVersion}`} className="grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <p className="text-[10px] font-medium text-cyan-300/60">Patient Name</p>
                           <p className="font-bold text-white mt-0.5 bg-slate-900 p-2 rounded-lg border border-cyan-500/10">{s.patientName}</p>
@@ -451,6 +467,9 @@ export function DashboardAurora() {
 
       {/* Post-Processing Audit Report Modal */}
       <ClaimReportModal s={s} />
+
+      {/* User Profile & Account Submissions Modal */}
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
     </div>
   );
 }

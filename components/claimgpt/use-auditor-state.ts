@@ -13,6 +13,7 @@ import {
   fetchClaimPreview,
   fetchLatestClaimId,
   fetchRecentClaims,
+  deleteClaimApi,
   type RealClaimPreview,
   type RecentClaimSummary,
   SUBMISSION_API,
@@ -39,6 +40,22 @@ export function useAuditorState() {
   /* Modal state for full report preview — default FALSE */
   const [showReportModal, setShowReportModal] = useState(false);
 
+  /* User Profile & Account Modal State */
+  const [userName, setUserName] = useState<string>('Nivas');
+  const [userEmail, setUserEmail] = useState<string>('nivas@example.com');
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const savedName = localStorage.getItem('claimgpt_user_name');
+      const savedEmail = localStorage.getItem('claimgpt_user_email');
+      if (savedName) setUserName(savedName);
+      if (savedEmail) setUserEmail(savedEmail);
+    } catch {
+      /* ignore localStorage error */
+    }
+  }, []);
+
   /* File(s) pending analysis */
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
@@ -47,6 +64,9 @@ export function useAuditorState() {
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [realPreview, setRealPreview] = useState<RealClaimPreview | null>(null);
+
+  /* Incremented each time realPreview is set with real data — used as key for MetaField remount */
+  const [previewVersion, setPreviewVersion] = useState(0);
 
   /* Collapsible Upload Dropdown Panel State — default FALSE when viewing active/history claim */
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -81,6 +101,7 @@ export function useAuditorState() {
           if (prevData) {
             setClaimId(latestId);
             setRealPreview(prevData);
+            setPreviewVersion((v) => v + 1);
             setProgress(100);
             setActiveStage('scoring');
             setIsLiveSessionCompleted(false);
@@ -94,15 +115,29 @@ export function useAuditorState() {
     loadInitial();
   }, []);
 
+  /* Remove a claim from local UI state and delete it from Docker backend */
+  const deleteClaim = async (idToDelete: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setRecentClaims((prev) => prev.filter((c) => c.id !== idToDelete));
+    try {
+      await deleteClaimApi(idToDelete);
+    } catch (err) {
+      console.warn("Backend deletion error:", err);
+    }
+  };
+
   /* Select any previous claim from history list */
   const selectClaim = async (targetId: string) => {
     if (!targetId) return;
     setClaimId(targetId);
     setIsUploadOpen(false); // Auto-collapse upload dropdown when selecting old claims
+    setEdited({}); // Reset edit badges from previous claim
+    setRealPreview(null); // Clear stale preview immediately
     try {
       const prevData = await fetchClaimPreview(targetId);
       if (prevData) {
         setRealPreview(prevData);
+        setPreviewVersion((v) => v + 1);
         setProgress(100);
         setActiveStage('scoring');
         setIsLiveSessionCompleted(false);
@@ -225,7 +260,7 @@ export function useAuditorState() {
 
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(targetFiles);
+      const res = await uploadClaimDocument(targetFiles, userName);
       if (res.claim_id) {
         activeClaimId = res.claim_id;
         setClaimId(res.claim_id);
@@ -234,6 +269,7 @@ export function useAuditorState() {
         const initialPreview = await fetchClaimPreview(res.claim_id);
         if (initialPreview) {
           setRealPreview(initialPreview);
+          setPreviewVersion((v) => v + 1);
         }
       }
     } catch (err) {
@@ -245,27 +281,59 @@ export function useAuditorState() {
     runProgressSequence(activeClaimId);
   };
 
-  /* Smooth 2.5-second progress sequence with background data sync */
+  /* Progress animation + background data sync that keeps polling until real data arrives */
   const runProgressSequence = (targetClaimId: string | null) => {
     let p = 15;
+    let dataArrived = false;
 
-    // Start background polling for the active claim ID
-    const pollInterval = setInterval(async () => {
-      const idToQuery = targetClaimId || claimId;
-      if (idToQuery) {
-        try {
-          const freshData = await fetchClaimPreview(idToQuery);
-          if (freshData && (freshData.summary || freshData.parsed_fields)) {
+    // Helper: fetch preview and update state if real data is present
+    const tryFetchPreview = async (): Promise<boolean> => {
+      const idToQuery = targetClaimId || (await fetchLatestClaimId());
+      if (!idToQuery) return false;
+      try {
+        const freshData = await fetchClaimPreview(idToQuery);
+        if (freshData) {
+          const hasParsedFields = Boolean(freshData.parsed_fields && Object.keys(freshData.parsed_fields).length > 0);
+          const hasSummaryFields = Boolean(
+            freshData.summary && (
+              (freshData.summary.patient_name && freshData.summary.patient_name !== "N/A") ||
+              (freshData.summary.hospital && freshData.summary.hospital !== "N/A") ||
+              (freshData.summary.diagnosis && freshData.summary.diagnosis !== "N/A")
+            )
+          );
+          const statusStr = (freshData.status || "").toUpperCase();
+          const isDoneStatus = statusStr === "COMPLETED" || statusStr === "VALIDATED";
+
+          if (hasParsedFields || hasSummaryFields || isDoneStatus) {
             setRealPreview(freshData);
+            setPreviewVersion((v) => v + 1);
             setClaimId(idToQuery);
+            return true;
           }
-        } catch {
-          /* ignore poll error */
         }
+      } catch {
+        /* ignore poll error */
       }
-    }, 400);
+      return false;
+    };
 
-    const timer = setInterval(async () => {
+    // Background polling — continues until real data arrives or 60s timeout
+    const pollStartTime = Date.now();
+    const pollInterval = setInterval(async () => {
+      if (dataArrived) { clearInterval(pollInterval); return; }
+      if (Date.now() - pollStartTime > 60000) { clearInterval(pollInterval); return; }
+      const got = await tryFetchPreview();
+      if (got) {
+        dataArrived = true;
+        clearInterval(pollInterval);
+        setAnalyzing(false);
+        setIsLiveSessionCompleted(true);
+        reloadRecentClaims();
+      }
+    }, 1500);
+
+    // Animated progress bar (purely visual, completes in ~2s)
+    const timer = setInterval(() => {
       p += 25;
       const currentPct = Math.min(p, 100);
       setProgress(currentPct);
@@ -277,32 +345,14 @@ export function useAuditorState() {
 
       if (currentPct >= 100) {
         clearInterval(timer);
-        clearInterval(pollInterval);
         setProgress(100);
         setActiveStage('scoring');
-        setAnalyzing(false);
-        setIsLiveSessionCompleted(true);
-
-        // Final sync after Celery finishes writing to Postgres
-        const fetchAndUpdate = async () => {
-          try {
-            await reloadRecentClaims();
-            const idToQuery = targetClaimId || claimId || (await fetchLatestClaimId());
-            if (idToQuery) {
-              const prevData = await fetchClaimPreview(idToQuery);
-              if (prevData) {
-                setRealPreview(prevData);
-                setClaimId(idToQuery);
-              }
-            }
-          } catch {
-            /* Ignore async prefetch error */
-          }
-        };
-
-        fetchAndUpdate();
-        setTimeout(fetchAndUpdate, 500);
-        setTimeout(fetchAndUpdate, 1500);
+        // NOTE: Do NOT set analyzing=false here.
+        // The poll interval above will set it once real data arrives.
+        // If data already arrived during animation, clean up.
+        if (dataArrived) {
+          clearInterval(pollInterval);
+        }
       }
     }, 500);
   };
@@ -315,6 +365,7 @@ export function useAuditorState() {
         const prevData = await fetchClaimPreview(idToQuery);
         if (prevData) {
           setRealPreview(prevData);
+          setPreviewVersion((v) => v + 1);
           setClaimId(idToQuery);
         }
       }
@@ -391,7 +442,17 @@ export function useAuditorState() {
     irdaPdfViewUrl,
     recentClaims,
     selectClaim,
+    deleteClaim,
     reloadRecentClaims,
+    previewVersion,
+    userName,
+    setUserName,
+    userEmail,
+    setUserEmail,
+    showProfileModal,
+    setShowProfileModal,
+    openProfileModal: () => setShowProfileModal(true),
+    closeProfileModal: () => setShowProfileModal(false),
   };
 }
 

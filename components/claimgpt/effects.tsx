@@ -337,13 +337,12 @@ export function StaggerItem({
   index = 0,
   className,
   id,
-  ...props
 }: {
   children: ReactNode;
   index?: number;
   className?: string;
   id?: string;
-} & HTMLAttributes<HTMLDivElement>) {
+}) {
   const delay = useContext(StaggerContext);
   return (
     <div

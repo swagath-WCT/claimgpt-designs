@@ -31,6 +31,8 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 
+import { syncUserToBackend } from '@/lib/api-client';
+
 type Role = 'patient' | 'tpa';
 
 export function LoginAurora() {

@@ -38,6 +38,8 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 
+import { syncUserToBackend } from '@/lib/api-client';
+
 export function RegisterAurora() {
   const router = useRouter();
   const [role, setRole] = useState<AuthRole>('patient');
