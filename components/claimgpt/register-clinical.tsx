@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { INSURERS } from '@/lib/claimgpt-data';
+import { registerAndSignIn, type AuthRole } from '@/lib/auth';
 import {
   AuroraBackground,
   GradientText,
@@ -39,17 +40,43 @@ import {
 
 export function RegisterClinical() {
   const router = useRouter();
+  const [role, setRole] = useState<AuthRole>('patient');
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+
+    const form = e.currentTarget;
+    const email = (form.elements.namedItem('c-contact') as HTMLInputElement | null)?.value || '';
+    const password = (form.elements.namedItem('c-pw') as HTMLInputElement | null)?.value || '';
+    const confirmPassword = (form.elements.namedItem('c-confirmPw') as HTMLInputElement | null)?.value || '';
+
+    if (!email || !password || !confirmPassword) {
+      setErrorMessage('Please enter your email address and password.');
       setSubmitting(false);
-      router.push('/app');
-    }, 1000);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Password confirmation does not match.');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const session = await registerAndSignIn({ username: email, password, role });
+      if (session) {
+        router.replace('/app');
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to complete registration.');
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -71,7 +98,7 @@ export function RegisterClinical() {
             <div className="mb-6 flex items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent">
                 <UserCircle className="h-4 w-4" />
-                User / Patient
+                {role === 'patient' ? 'Patient / Submitter' : 'TPA / Reviewer'}
               </span>
             </div>
             <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
@@ -83,6 +110,18 @@ export function RegisterClinical() {
           </StaggerItem>
 
           <StaggerItem index={1} className="mt-6">
+            <div className="mb-4 flex flex-wrap gap-2 rounded-xl border border-border bg-white/80 p-1">
+              {(['patient', 'tpa'] as AuthRole[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setRole(option)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${role === option ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {option === 'patient' ? 'Patient / Submitter' : 'TPA / Reviewer'}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <SSOButton provider="google" />
               <SSOButton provider="microsoft" />
@@ -255,6 +294,11 @@ export function RegisterClinical() {
                 </Label>
               </div>
 
+              {errorMessage ? (
+                <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {errorMessage}
+                </p>
+              ) : null}
               <MagneticButton
                 type="submit"
                 disabled={submitting || !agree}

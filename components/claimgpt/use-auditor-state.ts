@@ -31,7 +31,7 @@ export function scrollToPipeline() {
 export function useAuditorState() {
   const [progress, setProgress] = useState(0);
   const [activeStage, setActiveStage] = useState<Stage>('staged');
-  const [files, setFiles] = useState<{ name: string; size: string }[]>([]);
+  const [files, setFiles] = useState<{ name: string; size: string; type?: string }[]>([]);
   const [hoveredField, setHoveredField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [edited, setEdited] = useState<Record<string, boolean>>({});

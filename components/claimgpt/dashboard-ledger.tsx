@@ -345,7 +345,7 @@ export function DashboardLedger() {
                     {PIPELINE.map((p, i) => {
                       const isDone = i <= s.stageIndex;
                       return (
-                        <div key={p.id} className={cn(
+                        <div key={p.key} className={cn(
                           "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
                           isDone ? "bg-amber-500/20 border-amber-500/40 text-amber-200" : "bg-[#060b18]/80 border-white/5 text-slate-600"
                         )}>
@@ -375,7 +375,7 @@ export function DashboardLedger() {
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {/* Left: Document Viewer */}
                     <div className="rounded-xl border border-amber-500/20 bg-[#060b18] p-2 overflow-hidden min-h-[380px] flex flex-col">
-                      <DocumentViewer s={s} />
+                      <DocumentViewer zoom={s.zoom} setZoom={s.setZoom} hoveredField={s.hoveredField} filename={s.files[0]?.name || (s.claimId ? `${s.claimId}.pdf` : 'hospital_bill_main.pdf')} />
                     </div>
 
                     {/* Right: Extracted Patient & Claim Metadata */}

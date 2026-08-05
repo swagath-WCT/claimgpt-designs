@@ -2,6 +2,8 @@
  * API client to connect bolt 3-design UI to ClaimGPT Docker backend (http://localhost:8000)
  */
 
+import { getStoredAuthSession } from '@/lib/auth';
+
 export const INGRESS_API = "http://localhost:8000/ingress";
 export const SUBMISSION_API = "http://localhost:8000/submission";
 export const CHAT_API = "http://localhost:8000/chat";
@@ -42,6 +44,15 @@ export interface RecentClaimSummary {
   total_amount?: string;
 }
 
+export function getAuthHeaders() {
+  const session = getStoredAuthSession();
+  const headers: Record<string, string> = {};
+  if (session?.accessToken) {
+    headers.Authorization = `Bearer ${session.accessToken}`;
+  }
+  return headers;
+}
+
 /**
  * Upload a document to the local Docker backend ingress service
  */
@@ -55,6 +66,7 @@ export async function uploadClaimDocument(files: File | File[]): Promise<{ claim
   const res = await fetch(`${INGRESS_API}/claims`, {
     method: "POST",
     body: formData,
+    headers: getAuthHeaders(),
   });
 
   if (!res.ok) {
@@ -72,7 +84,7 @@ export async function uploadClaimDocument(files: File | File[]): Promise<{ claim
  */
 export async function fetchClaimProgress(claimId: string): Promise<{ percentage: number; step: string; status: string; is_complete: boolean }> {
   try {
-    const prevRes = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store" });
+    const prevRes = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store", headers: getAuthHeaders() });
     if (prevRes.ok) {
       const prevData = await prevRes.json();
       const statusStr = (prevData.status || "").toUpperCase();
@@ -82,7 +94,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       }
     }
 
-    const res = await fetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, { cache: "no-store", headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
       let pct = typeof data.percentage === "number" ? data.percentage : 0;
@@ -112,7 +124,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
  */
 export async function fetchClaimPreview(claimId: string): Promise<RealClaimPreview | null> {
   try {
-    const res = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store", headers: getAuthHeaders() });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {

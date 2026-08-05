@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type HTMLAttributes,
 } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -335,19 +336,24 @@ export function StaggerItem({
   children,
   index = 0,
   className,
+  id,
+  ...props
 }: {
   children: ReactNode;
   index?: number;
   className?: string;
-}) {
+  id?: string;
+} & HTMLAttributes<HTMLDivElement>) {
   const delay = useContext(StaggerContext);
   return (
     <div
+      id={id}
       className={cn('animate-slide-up opacity-0', className)}
       style={{
         animationDelay: `${index * delay}ms`,
         animationFillMode: 'forwards',
       }}
+      {...props}
     >
       {children}
     </div>

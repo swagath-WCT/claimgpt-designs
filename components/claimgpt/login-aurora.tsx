@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react';
+import { authenticateWithPassword } from '@/lib/auth';
 import { BrandPanel } from '@/components/claimgpt/brand-panel';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { SSOButton } from '@/components/claimgpt/sso-button';
@@ -37,14 +38,32 @@ export function LoginAurora() {
   const [role, setRole] = useState<Role>('patient');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+
+    const form = e.currentTarget;
+    const identifier = (form.elements.namedItem('patient-id') as HTMLInputElement | null)?.value || '';
+    const password = (form.elements.namedItem('patient-pw') as HTMLInputElement | null)?.value || '';
+
+    if (!identifier || !password) {
+      setErrorMessage('Please enter your email address and password.');
       setSubmitting(false);
-      router.push('/app');
-    }, 500);
+      return;
+    }
+
+    try {
+      const session = await authenticateWithPassword({ username: identifier, password, role });
+      if (session) {
+        router.replace('/app');
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to sign in.');
+      setSubmitting(false);
+    }
   };
 
   return (

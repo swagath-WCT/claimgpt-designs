@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { registerAndSignIn, type AuthRole } from '@/lib/auth';
 import {
   ArrowLeft,
   ArrowRight,
@@ -39,17 +40,43 @@ import {
 
 export function RegisterAurora() {
   const router = useRouter();
+  const [role, setRole] = useState<AuthRole>('patient');
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+
+    const form = e.currentTarget;
+    const email = (form.elements.namedItem('contact') as HTMLInputElement | null)?.value || '';
+    const password = (form.elements.namedItem('pw') as HTMLInputElement | null)?.value || '';
+    const confirmPassword = (form.elements.namedItem('confirmPw') as HTMLInputElement | null)?.value || '';
+
+    if (!email || !password || !confirmPassword) {
+      setErrorMessage('Please enter your email address and password.');
       setSubmitting(false);
-      router.push('/app');
-    }, 1000);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Password confirmation does not match.');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const session = await registerAndSignIn({ username: email, password, role });
+      if (session) {
+        router.replace('/app');
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to complete registration.');
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -71,7 +98,7 @@ export function RegisterAurora() {
             <div className="mb-6 flex justify-center">
               <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-1.5 text-xs font-semibold text-accent">
                 <UserCircle className="h-4 w-4" />
-                Account Role: User / Patient
+                Account Role: {role === 'patient' ? 'Patient / Submitter' : 'TPA / Reviewer'}
               </span>
             </div>
             <div className="text-center">
@@ -85,6 +112,18 @@ export function RegisterAurora() {
           </StaggerItem>
 
           <StaggerItem index={1} className="mt-8">
+            <div className="mb-4 flex flex-wrap gap-2 rounded-xl border border-border bg-background/70 p-1">
+              {(['patient', 'tpa'] as AuthRole[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setRole(option)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${role === option ? 'bg-accent text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {option === 'patient' ? 'Patient / Submitter' : 'TPA / Reviewer'}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <SSOButton provider="google" />
               <SSOButton provider="microsoft" />
@@ -227,6 +266,11 @@ export function RegisterAurora() {
                   </Label>
                 </div>
 
+                {errorMessage ? (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                    {errorMessage}
+                  </p>
+                ) : null}
                 <MagneticButton
                   type="submit"
                   disabled={submitting || !agree}
