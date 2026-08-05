@@ -335,14 +335,17 @@ export function StaggerItem({
   children,
   index = 0,
   className,
+  id,
 }: {
   children: ReactNode;
   index?: number;
   className?: string;
+  id?: string;
 }) {
   const delay = useContext(StaggerContext);
   return (
     <div
+      id={id}
       className={cn('animate-slide-up opacity-0', className)}
       style={{
         animationDelay: `${index * delay}ms`,

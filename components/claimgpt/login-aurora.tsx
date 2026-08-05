@@ -30,6 +30,8 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 
+import { syncUserToBackend } from '@/lib/api-client';
+
 type Role = 'patient' | 'tpa';
 
 export function LoginAurora() {
@@ -41,6 +43,16 @@ export function LoginAurora() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    const inputEl = document.getElementById('patient-id') as HTMLInputElement;
+    const val = inputEl?.value?.trim() || 'Swagath';
+    const namePart = val.includes('@') ? val.split('@')[0] : val;
+    const capName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+    const email = val.includes('@') ? val : `${val.toLowerCase()}@example.com`;
+    try {
+      localStorage.setItem('claimgpt_user_name', capName);
+      localStorage.setItem('claimgpt_user_email', email);
+      syncUserToBackend(capName, email);
+    } catch { /* ignore */ }
     setTimeout(() => {
       setSubmitting(false);
       router.push('/app');

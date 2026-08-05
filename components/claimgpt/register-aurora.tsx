@@ -37,6 +37,8 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 
+import { syncUserToBackend } from '@/lib/api-client';
+
 export function RegisterAurora() {
   const router = useRouter();
   const [agree, setAgree] = useState(false);
@@ -46,10 +48,25 @@ export function RegisterAurora() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    const fn = (document.getElementById('firstName') as HTMLInputElement)?.value?.trim() || 'Kareem';
+    const ln = (document.getElementById('lastName') as HTMLInputElement)?.value?.trim() || 'Rossi';
+    const name = `${fn} ${ln}`;
+    const dob = (document.getElementById('dob') as HTMLInputElement)?.value?.trim() || '19 Aug 1950';
+    const contact = (document.getElementById('contact') as HTMLInputElement)?.value?.trim() || 'kareem.rossi@emirates.net.ae';
+    const policy = (document.getElementById('policy') as HTMLInputElement)?.value?.trim() || 'P-0007401';
+    
+    try {
+      localStorage.setItem('claimgpt_user_name', name);
+      localStorage.setItem('claimgpt_user_email', contact);
+      localStorage.setItem('claimgpt_user_dob', dob);
+      localStorage.setItem('claimgpt_user_policy', policy);
+      syncUserToBackend(name, contact);
+    } catch { /* ignore */ }
+
     setTimeout(() => {
       setSubmitting(false);
       router.push('/app');
-    }, 1000);
+    }, 600);
   };
 
   return (

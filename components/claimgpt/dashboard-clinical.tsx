@@ -17,6 +17,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
+import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -47,14 +49,17 @@ export function DashboardClinical() {
     <div className="relative min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur-md">
-        <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
-              <ShieldCheck className="h-5 w-5" />
+        <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
+              <ShieldCheck className="h-4 sm:h-5 w-4 sm:w-5" />
             </div>
-            <div>
-              <span className="font-display text-lg font-bold tracking-tight">ClaimGPT</span>
-              <span className="ml-2 rounded bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700">Self-Service Portal</span>
+            <div className="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+              <span className="font-display text-base sm:text-lg font-bold tracking-tight flex-none">ClaimGPT</span>
+              <span className="rounded bg-teal-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-teal-700 whitespace-nowrap flex-none">
+                <span className="hidden sm:inline">Self-Service Portal</span>
+                <span className="sm:hidden">Clinical</span>
+              </span>
             </div>
           </div>
           <div className="relative ml-4 hidden flex-1 max-w-md md:block">
@@ -74,8 +79,8 @@ export function DashboardClinical() {
               <Bell className="h-5 w-5" />
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
             </button>
-            <Avatar className="h-9 w-9 border border-slate-200">
-              <AvatarFallback className="bg-teal-600 text-xs font-semibold text-white">PT</AvatarFallback>
+            <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-slate-200 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
+              <AvatarFallback className="bg-teal-600 text-xs font-semibold text-white">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
           </div>
         </div>
@@ -144,10 +149,22 @@ export function DashboardClinical() {
                           )}
                         >
                           <div className="flex items-center justify-between gap-1">
-                            <p className="text-xs font-bold truncate text-foreground">
+                            <p className="text-xs font-bold truncate text-foreground min-w-0 flex-1">
                               {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
                             </p>
-                            {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
+                            <div className="flex items-center gap-1.5 flex-none">
+                              {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => s.deleteClaim(claim.id, e as any)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                                title="Remove claim"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground mt-1 truncate">
                             ID: {claim.id.slice(0, 8)}...
@@ -465,7 +482,7 @@ export function DashboardClinical() {
                       <div className="border-b border-border bg-slate-50/60 px-5 py-3">
                         <h3 className="text-sm font-semibold text-foreground">Extracted Claim Data</h3>
                       </div>
-                      <div key={s.claimId || 'default-clinical'} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+                      <div key={`${s.claimId || 'default-clinical'}-${s.previewVersion}`} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
                         <MetaField id="c-patient-name" label="Patient Name" defaultValue={s.patientName} edited={!!s.edited['patient-name']} onEdit={() => s.markEdited('patient-name')} />
                         <MetaField id="c-hospital" label="Hospital" defaultValue={s.hospitalName} edited={!!s.edited['hospital']} onEdit={() => s.markEdited('hospital')} />
                         <MetaField id="c-admission" label="Admission Date" defaultValue={s.admissionDate} edited={!!s.edited['admission']} onEdit={() => s.markEdited('admission')} />
@@ -510,7 +527,11 @@ export function DashboardClinical() {
           </div>
         </StaggerContainer>
       </main>
+      {/* Post-Processing Audit Report Modal */}
       <ClaimReportModal s={s} />
+
+      {/* User Profile & Account Submissions Modal */}
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
     </div>
   );
 }

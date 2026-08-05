@@ -16,7 +16,8 @@ import {
   Sparkles,
   Trash2,
   Upload,
-  Crown
+  Crown,
+  X
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
+import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -50,15 +52,16 @@ export function DashboardLedger() {
 
       {/* Header — Luxury Executive Royal Navy & Gold */}
       <header className="relative z-40 sticky top-0 border-b border-amber-500/20 bg-[#060b18]/85 backdrop-blur-xl">
-        <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 font-bold shadow-lg shadow-amber-500/20 border border-amber-400/40">
-              <Crown className="h-5 w-5 fill-slate-950" />
+        <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 font-bold shadow-lg shadow-amber-500/20 border border-amber-400/40">
+              <Crown className="h-4 sm:h-5 w-4 sm:w-5 fill-slate-950" />
             </div>
-            <div>
-              <span className="font-display text-lg font-bold tracking-tight text-white">ClaimGPT</span>
-              <span className="ml-2 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold text-amber-300 border border-amber-500/30 uppercase tracking-wider">
-                Executive Gold
+            <div className="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+              <span className="font-display text-base sm:text-lg font-bold tracking-tight text-white flex-none">ClaimGPT</span>
+              <span className="rounded-full bg-amber-500/20 px-2 sm:px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-amber-300 border border-amber-500/30 uppercase tracking-wider whitespace-nowrap flex-none">
+                <span className="hidden sm:inline">Executive Gold</span>
+                <span className="sm:hidden">Executive</span>
               </span>
             </div>
           </div>
@@ -79,8 +82,8 @@ export function DashboardLedger() {
               <Bell className="h-5 w-5" />
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400" />
             </button>
-            <Avatar className="h-9 w-9 border border-amber-500/40">
-              <AvatarFallback className="bg-gradient-to-tr from-amber-500 to-amber-600 text-xs font-extrabold text-slate-950">PT</AvatarFallback>
+            <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-amber-500/40 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
+              <AvatarFallback className="bg-gradient-to-tr from-amber-500 to-amber-600 text-xs font-extrabold text-slate-950">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
           </div>
         </div>
@@ -151,10 +154,22 @@ export function DashboardLedger() {
                           )}
                         >
                           <div className="flex items-center justify-between gap-1">
-                            <p className="text-xs font-bold truncate text-white">
+                            <p className="text-xs font-bold truncate text-white min-w-0 flex-1">
                               {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
                             </p>
-                            {isSelected ? <span className="flex h-2 w-2 rounded-full bg-amber-400 flex-none shadow-sm shadow-amber-400" /> : null}
+                            <div className="flex items-center gap-1.5 flex-none">
+                              {isSelected ? <span className="flex h-2 w-2 rounded-full bg-amber-400 flex-none shadow-sm shadow-amber-400" /> : null}
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => s.deleteClaim(claim.id, e as any)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                                title="Remove claim"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
                           </div>
                           <p className="text-[10px] text-amber-300/60 mt-1 truncate">
                             ID: {claim.id.slice(0, 8)}...
@@ -345,7 +360,7 @@ export function DashboardLedger() {
                     {PIPELINE.map((p, i) => {
                       const isDone = i <= s.stageIndex;
                       return (
-                        <div key={p.id} className={cn(
+                        <div key={p.key} className={cn(
                           "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
                           isDone ? "bg-amber-500/20 border-amber-500/40 text-amber-200" : "bg-[#060b18]/80 border-white/5 text-slate-600"
                         )}>
@@ -375,14 +390,14 @@ export function DashboardLedger() {
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {/* Left: Document Viewer */}
                     <div className="rounded-xl border border-amber-500/20 bg-[#060b18] p-2 overflow-hidden min-h-[380px] flex flex-col">
-                      <DocumentViewer s={s} />
+                      <DocumentViewer zoom={s.zoom} setZoom={s.setZoom} hoveredField={s.hoveredField} filename={s.files[0]?.name || (s.claimId ? `${s.claimId}.pdf` : "hospital_bill_main.pdf")} dark />
                     </div>
 
                     {/* Right: Extracted Patient & Claim Metadata */}
                     <div className="space-y-3 rounded-xl border border-amber-500/20 bg-[#060b18]/90 p-4">
                       <h3 className="text-xs font-bold text-white uppercase tracking-wider border-b border-amber-500/20 pb-2">Patient Metadata</h3>
                       
-                      <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div key={`${s.claimId || 'default-ledger'}-${s.previewVersion}`} className="grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <p className="text-[10px] font-medium text-amber-300/60">Patient Name</p>
                           <p className="font-bold text-white mt-0.5 bg-[#0a1226] p-2 rounded-lg border border-amber-500/10">{s.patientName}</p>
@@ -449,6 +464,9 @@ export function DashboardLedger() {
 
       {/* Post-Processing Audit Report Modal */}
       <ClaimReportModal s={s} />
+
+      {/* User Profile & Account Submissions Modal */}
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
     </div>
   );
 }
