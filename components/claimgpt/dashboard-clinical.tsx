@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+
 import {
   Bell,
   Camera,
@@ -18,6 +20,8 @@ import {
   Trash2,
   Upload,
   X,
+  Menu,
+  Loader2,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { Button } from '@/components/ui/button';
@@ -27,6 +31,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
 import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
+import { HamburgerMenuDrawer } from '@/components/claimgpt/hamburger-menu-drawer';
+import { NotificationBell } from '@/components/claimgpt/notification-bell';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -51,6 +57,15 @@ export function DashboardClinical() {
       <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={s.openMenuDrawer}
+              className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+              aria-label="Open Navigation Menu"
+              title="Navigation Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
               <ShieldCheck className="h-4 sm:h-5 w-4 sm:w-5" />
             </div>
@@ -75,10 +90,7 @@ export function DashboardClinical() {
               Processing Queue: <CountUp end={3} />
             </span>
             <LanguageSwitcher variant="light" />
-            <button type="button" className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-slate-100 hover:text-foreground" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
-            </button>
+            <NotificationBell variant="clinical" />
             <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-slate-200 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
               <AvatarFallback className="bg-teal-600 text-xs font-semibold text-white">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -399,8 +411,15 @@ export function DashboardClinical() {
                       <div className="flex items-center gap-2">
                         <h2 className="text-sm font-bold text-foreground">Processing Pipeline</h2>
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-500/30">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          {s.progress}% COMPLETE
+                          {s.progress >= 100 ? (
+                            <>
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> 100% COMPLETE
+                            </>
+                          ) : (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-600" /> {s.progress}% PROCESSING
+                            </>
+                          )}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -425,6 +444,7 @@ export function DashboardClinical() {
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                       <span>0%</span>
+                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
                       <span>100%</span>
                     </div>
                   </div>
@@ -531,7 +551,10 @@ export function DashboardClinical() {
       <ClaimReportModal s={s} />
 
       {/* User Profile & Account Submissions Modal */}
-      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} variant="clinical" />
+
+      {/* Slide-out Sidebar Navigation Drawer */}
+      <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="clinical" />
     </div>
   );
 }
@@ -551,6 +574,12 @@ function MetaField({
   onEdit: () => void;
   className?: string;
 }) {
+  const [val, setVal] = useState(defaultValue);
+
+  useEffect(() => {
+    setVal(defaultValue);
+  }, [defaultValue]);
+
   return (
     <div className={cn('space-y-1.5', className)}>
       <div className="flex items-center gap-2">
@@ -561,7 +590,15 @@ function MetaField({
           </span>
         )}
       </div>
-      <Input id={id} defaultValue={defaultValue} onChange={onEdit} className="h-10 border-slate-200" />
+      <Input
+        id={id}
+        value={val}
+        onChange={(e) => {
+          setVal(e.target.value);
+          onEdit();
+        }}
+        className="h-10 border-slate-200"
+      />
     </div>
   );
 }

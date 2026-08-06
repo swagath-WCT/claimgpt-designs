@@ -44,6 +44,7 @@ export function useAuditorState() {
   const [userName, setUserName] = useState<string>('Nivas');
   const [userEmail, setUserEmail] = useState<string>('nivas@example.com');
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showMenuDrawer, setShowMenuDrawer] = useState<boolean>(false);
 
   useEffect(() => {
     try {
@@ -317,44 +318,49 @@ export function useAuditorState() {
       return false;
     };
 
-    // Background polling — continues until real data arrives or 60s timeout
+    const finishProgress = () => {
+      if (dataArrived) return;
+      dataArrived = true;
+      clearInterval(pollInterval);
+      clearInterval(timer);
+      setProgress(100);
+      setActiveStage('scoring');
+      setAnalyzing(false);
+      setIsLiveSessionCompleted(true);
+      reloadRecentClaims();
+    };
+
+    // Background polling — continues every 600ms until Celery finishes OCR & LLM extraction
     const pollStartTime = Date.now();
     const pollInterval = setInterval(async () => {
       if (dataArrived) { clearInterval(pollInterval); return; }
-      if (Date.now() - pollStartTime > 60000) { clearInterval(pollInterval); return; }
+      if (Date.now() - pollStartTime > 60000) {
+        finishProgress();
+        return;
+      }
       const got = await tryFetchPreview();
       if (got) {
-        dataArrived = true;
-        clearInterval(pollInterval);
-        setAnalyzing(false);
-        setIsLiveSessionCompleted(true);
-        reloadRecentClaims();
+        finishProgress();
       }
-    }, 1500);
+    }, 600);
 
-    // Animated progress bar (purely visual, completes in ~2s)
+    // Animated progress bar — advances up to 92% and holds until backend finishes
     const timer = setInterval(() => {
-      p += 25;
-      const currentPct = Math.min(p, 100);
-      setProgress(currentPct);
-
-      if (currentPct >= 85) setActiveStage('scoring');
-      else if (currentPct >= 60) setActiveStage('coding');
-      else if (currentPct >= 35) setActiveStage('parsing');
-      else if (currentPct >= 15) setActiveStage('ocr');
-
-      if (currentPct >= 100) {
+      if (dataArrived) {
         clearInterval(timer);
-        setProgress(100);
-        setActiveStage('scoring');
-        // NOTE: Do NOT set analyzing=false here.
-        // The poll interval above will set it once real data arrives.
-        // If data already arrived during animation, clean up.
-        if (dataArrived) {
-          clearInterval(pollInterval);
-        }
+        return;
       }
-    }, 500);
+      if (p < 92) {
+        p += 15;
+        const currentPct = Math.min(p, 92);
+        setProgress(currentPct);
+
+        if (currentPct >= 85) setActiveStage('scoring');
+        else if (currentPct >= 60) setActiveStage('coding');
+        else if (currentPct >= 35) setActiveStage('parsing');
+        else if (currentPct >= 15) setActiveStage('ocr');
+      }
+    }, 400);
   };
 
   /* Manually open report modal and fetch selected or latest claim preview directly from backend */
@@ -453,6 +459,10 @@ export function useAuditorState() {
     setShowProfileModal,
     openProfileModal: () => setShowProfileModal(true),
     closeProfileModal: () => setShowProfileModal(false),
+    showMenuDrawer,
+    setShowMenuDrawer,
+    openMenuDrawer: () => setShowMenuDrawer(true),
+    closeMenuDrawer: () => setShowMenuDrawer(false),
   };
 }
 

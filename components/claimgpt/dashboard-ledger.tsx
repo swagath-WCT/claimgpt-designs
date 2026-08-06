@@ -17,7 +17,9 @@ import {
   Trash2,
   Upload,
   Crown,
-  X
+  X,
+  Menu,
+  Loader2,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { Button } from '@/components/ui/button';
@@ -26,6 +28,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
 import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
+import { HamburgerMenuDrawer } from '@/components/claimgpt/hamburger-menu-drawer';
+import { NotificationBell } from '@/components/claimgpt/notification-bell';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -54,6 +58,15 @@ export function DashboardLedger() {
       <header className="relative z-40 sticky top-0 border-b border-amber-500/20 bg-[#060b18]/85 backdrop-blur-xl">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={s.openMenuDrawer}
+              className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl border border-amber-500/20 text-amber-300 hover:bg-amber-500/20 hover:text-white transition-colors"
+              aria-label="Open Navigation Menu"
+              title="Navigation Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 font-bold shadow-lg shadow-amber-500/20 border border-amber-400/40">
               <Crown className="h-4 sm:h-5 w-4 sm:w-5 fill-slate-950" />
             </div>
@@ -78,10 +91,7 @@ export function DashboardLedger() {
               Processing Queue: <CountUp end={3} />
             </span>
             <LanguageSwitcher variant="dark" />
-            <button type="button" className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 text-amber-400 hover:bg-amber-500/10 hover:text-white" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400" />
-            </button>
+            <NotificationBell variant="executive" />
             <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-amber-500/40 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
               <AvatarFallback className="bg-gradient-to-tr from-amber-500 to-amber-600 text-xs font-extrabold text-slate-950">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -339,18 +349,27 @@ export function DashboardLedger() {
                       <span className="text-xs font-bold text-white uppercase tracking-wider">Processing Pipeline</span>
                       <p className="text-[10px] text-amber-300/60">Claim ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "CLM-2026-08842"}</p>
                     </div>
-                    <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" /> 100% COMPLETE
+                    <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
+                      {s.progress >= 100 ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" /> 100% COMPLETE
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" /> {s.progress}% PROCESSING
+                        </>
+                      )}
                     </span>
                   </div>
 
                   {/* Progress Bar */}
                   <div className="space-y-1 mb-4">
-                    <div className="h-2 w-full rounded-full bg-[#060b18] overflow-hidden border border-amber-500/20">
-                      <div className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-500" style={{ width: `${s.progress}%` }} />
+                    <div className="h-2.5 w-full rounded-full bg-[#060b18] overflow-hidden border border-amber-500/20 p-0.5">
+                      <div className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]" style={{ width: `${Math.max(s.progress, 5)}%` }} />
                     </div>
                     <div className="flex justify-between text-[10px] font-bold text-amber-300/70 px-0.5">
                       <span>0%</span>
+                      <span className="font-extrabold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
                       <span className="text-amber-400">100%</span>
                     </div>
                   </div>
@@ -466,7 +485,10 @@ export function DashboardLedger() {
       <ClaimReportModal s={s} />
 
       {/* User Profile & Account Submissions Modal */}
-      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} variant="executive" />
+
+      {/* Slide-out Sidebar Navigation Drawer */}
+      <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="executive" />
     </div>
   );
 }

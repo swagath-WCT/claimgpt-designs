@@ -10,6 +10,7 @@ import {
   FileText,
   Folder,
   Image as ImageIcon,
+  Loader2,
   Plus,
   Search,
   ShieldCheck,
@@ -17,7 +18,8 @@ import {
   Trash2,
   Upload,
   X,
-  Zap
+  Zap,
+  Menu
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { Button } from '@/components/ui/button';
@@ -26,6 +28,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
 import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
+import { HamburgerMenuDrawer } from '@/components/claimgpt/hamburger-menu-drawer';
+import { NotificationBell } from '@/components/claimgpt/notification-bell';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -56,6 +60,15 @@ export function DashboardAurora() {
       <header className="relative z-40 sticky top-0 border-b border-cyan-500/20 bg-[#030712]/80 backdrop-blur-xl">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={s.openMenuDrawer}
+              className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl border border-cyan-500/20 text-cyan-300 hover:bg-cyan-500/20 hover:text-white transition-colors"
+              aria-label="Open Navigation Menu"
+              title="Navigation Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/20">
               <Zap className="h-4 sm:h-5 w-4 sm:w-5 fill-white" />
             </div>
@@ -80,10 +93,7 @@ export function DashboardAurora() {
               Cyber Queue: <CountUp end={3} />
             </span>
             <LanguageSwitcher variant="dark" />
-            <button type="button" className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10 hover:text-white" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400" />
-            </button>
+            <NotificationBell variant="neon" />
             <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-cyan-500/30 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
               <AvatarFallback className="bg-gradient-to-tr from-cyan-500 to-blue-600 text-xs font-bold text-white">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -341,18 +351,27 @@ export function DashboardAurora() {
                       <span className="text-xs font-bold text-white uppercase tracking-wider">Processing Pipeline</span>
                       <p className="text-[10px] text-cyan-300/60">Claim ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "CLM-2026-08842"}</p>
                     </div>
-                    <span className="rounded-full bg-cyan-500/20 px-2.5 py-0.5 text-xs font-bold text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400" /> 100% COMPLETE
+                    <span className="rounded-full bg-cyan-500/20 px-2.5 py-0.5 text-xs font-bold text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5">
+                      {s.progress >= 100 ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400" /> 100% COMPLETE
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" /> {s.progress}% PROCESSING
+                        </>
+                      )}
                     </span>
                   </div>
 
                   {/* Progress Bar */}
                   <div className="space-y-1 mb-4">
-                    <div className="h-2 w-full rounded-full bg-slate-950 overflow-hidden border border-cyan-500/20">
-                      <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500" style={{ width: `${s.progress}%` }} />
+                    <div className="h-2.5 w-full rounded-full bg-slate-950 overflow-hidden border border-cyan-500/20 p-0.5">
+                      <div className="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_12px_rgba(6,182,212,0.5)]" style={{ width: `${Math.max(s.progress, 5)}%` }} />
                     </div>
                     <div className="flex justify-between text-[10px] font-bold text-cyan-300/70 px-0.5">
                       <span>0%</span>
+                      <span className="font-extrabold text-cyan-300 bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
                       <span className="text-cyan-400">100%</span>
                     </div>
                   </div>
@@ -468,7 +487,10 @@ export function DashboardAurora() {
       <ClaimReportModal s={s} />
 
       {/* User Profile & Account Submissions Modal */}
-      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} variant="neon" />
+
+      {/* Slide-out Sidebar Navigation Drawer */}
+      <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="neon" />
     </div>
   );
 }
