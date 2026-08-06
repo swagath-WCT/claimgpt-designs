@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { registerAndSignIn, type AuthRole } from '@/lib/auth';
+import { authenticateWithPassword, registerAndSignIn, type AuthRole } from '@/lib/auth';
 import {
   ArrowLeft,
   ArrowRight,
@@ -54,9 +54,16 @@ export function RegisterAurora() {
     setErrorMessage(null);
 
     const form = e.currentTarget;
-    const email = (form.elements.namedItem('contact') as HTMLInputElement | null)?.value || '';
     const password = (form.elements.namedItem('pw') as HTMLInputElement | null)?.value || '';
     const confirmPassword = (form.elements.namedItem('confirmPw') as HTMLInputElement | null)?.value || '';
+
+    // Collect fields depending on role
+    const firstName = (form.elements.namedItem('firstName') as HTMLInputElement | null)?.value || '';
+    const lastName = (form.elements.namedItem('lastName') as HTMLInputElement | null)?.value || '';
+    const email = (form.elements.namedItem('contact') as HTMLInputElement | null)?.value || '';
+    const mobile = (form.elements.namedItem('mobile') as HTMLInputElement | null)?.value || '';
+    const organization = (form.elements.namedItem('organization') as HTMLInputElement | null)?.value || '';
+    const employeeId = (form.elements.namedItem('employeeId') as HTMLInputElement | null)?.value || '';
 
     if (!email || !password || !confirmPassword) {
       setErrorMessage('Please enter your email address and password.');
@@ -71,10 +78,50 @@ export function RegisterAurora() {
     }
 
     try {
-      const session = await registerAndSignIn({ username: email, password, role });
-      if (session) {
-        router.replace('/app');
+      // Build payload for server registration
+      const passwordHash = await (globalThis as typeof globalThis & { crypto: Crypto }).crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(password),
+      ).then((digest) => Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join(''));
+
+      const payload: Record<string, unknown> = {
+        username: email,
+        password_hash: `sha256$${passwordHash}`,
+        role,
+      };
+
+      if (role === 'tpa') {
+        payload.first_name = firstName;
+        payload.last_name = lastName;
+        payload.phone = mobile || undefined;
+        payload.organization = organization;
+        payload.employee_id = employeeId || undefined;
+      } else {
+        // patient-specific fields (keep existing keys)
+        payload.first_name = firstName;
+        payload.last_name = lastName;
+        payload.dob = (form.elements.namedItem('dob') as HTMLInputElement | null)?.value || undefined;
+        payload.gender = (form.elements.namedItem('gender') as HTMLInputElement | null)?.value || undefined;
+        payload.policy = (form.elements.namedItem('policy') as HTMLInputElement | null)?.value || undefined;
+        payload.sum_insured = (form.elements.namedItem('sumInsured') as HTMLInputElement | null)?.value || undefined;
       }
+
+      // Send registration request to server API which will create Keycloak user and sync to DB
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = typeof (data as any).error === 'string' ? (data as any).error : 'Unable to create the account.';
+        throw new Error(msg);
+      }
+
+      // After server-side creation, sign in locally / via password grant
+      await authenticateWithPassword({ username: email, password, role });
+      router.replace('/app');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to complete registration.');
       setSubmitting(false);
@@ -149,115 +196,170 @@ export function RegisterAurora() {
           <StaggerItem index={3}>
             <SpotlightCard className="mt-8 border-border bg-card p-6 shadow-elevation-sm sm:p-8">
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name</Label>
-                    <div className="relative">
-                      <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="firstName" placeholder="e.g. John" className="h-11 pl-10" required />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <div className="relative">
-                      <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="lastName" placeholder="e.g. Doe" className="h-11 pl-10" required />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dob">Date of Birth</Label>
-                    <div className="relative">
-                      <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="dob" type="text" placeholder="DD/MM/YYYY" className="h-11 pl-10" required />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Gender</Label>
-                    <Select required>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Select gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="contact">Email Address or Mobile Number</Label>
-                    <Input id="contact" type="text" inputMode="email" placeholder="e.g. john@example.com or 9876543210" className="h-11" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Insurer Provider</Label>
-                    <Select required>
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Select insurer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {INSURERS.map((ins) => (
-                          <SelectItem key={ins} value={ins.toLowerCase().replace(/\s+/g, '-')}>
-                            {ins}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="policy">Policy Number</Label>
-                    <div className="relative">
-                      <CreditCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="policy" placeholder="e.g. POL-123456" className="h-11 pl-10" required />
-                    </div>
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label htmlFor="sumInsured">Sum Insured (INR)</Label>
-                    <div className="relative">
-                      <IndianRupee className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="sumInsured" type="number" min="0" placeholder="e.g. 500000" className="h-11 pl-10" required />
-                    </div>
-                  </div>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Upload Health Card / Policy Document (Optional)</Label>
-                    <label
-                      htmlFor="doc"
-                      className="group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/40 px-6 py-8 text-center transition-all hover:border-accent/50 hover:bg-accent/5 tap-highlight-none"
-                    >
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent transition-transform group-hover:scale-110">
-                        <Upload className="h-5 w-5" />
+                {role === 'tpa' ? (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="firstName" name="firstName" placeholder="e.g. John" className="h-11 pl-10" required />
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {fileName ?? 'Click to upload or drag & drop'}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Upload your Health ID Card or Policy Copy to auto-verify your coverage details. PDF, JPG, PNG accepted.
-                        </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="lastName" name="lastName" placeholder="e.g. Doe" className="h-11 pl-10" required />
                       </div>
-                      <input
-                        id="doc"
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        className="hidden"
-                        onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-                      />
-                    </label>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pw">Password</Label>
-                    <div className="relative">
-                      <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="pw" type="password" placeholder="••••••••" className="h-11 pl-10" required />
+                    </div>
+
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="contact">Email Address</Label>
+                      <Input id="contact" name="contact" type="email" inputMode="email" placeholder="e.g. john@example.com" className="h-11" required />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="mobile">Mobile Number</Label>
+                      <Input id="mobile" name="mobile" type="tel" inputMode="tel" placeholder="e.g. 9876543210" className="h-11" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="organization">Organization (Employee's insurer/TPA)</Label>
+                      <Input id="organization" name="organization" placeholder="e.g. Medi Assist" className="h-11" required />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="employeeId">Employee ID</Label>
+                      <Input id="employeeId" name="employeeId" placeholder="e.g. EMP-12345" className="h-11" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="pw">Password</Label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="pw" name="pw" type="password" placeholder="••••••••" className="h-11 pl-10" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPw">Confirm Password</Label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="confirmPw" name="confirmPw" type="password" placeholder="••••••••" className="h-11 pl-10" required />
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPw">Confirm Password</Label>
-                    <div className="relative">
-                      <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input id="confirmPw" type="password" placeholder="••••••••" className="h-11 pl-10" required />
+                ) : (
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="firstName" name="firstName" placeholder="e.g. John" className="h-11 pl-10" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="lastName" name="lastName" placeholder="e.g. Doe" className="h-11 pl-10" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="dob">Date of Birth</Label>
+                      <div className="relative">
+                        <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="dob" name="dob" type="text" placeholder="DD/MM/YYYY" className="h-11 pl-10" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Gender</Label>
+                      <Select required>
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="contact">Email Address or Mobile Number</Label>
+                      <Input id="contact" name="contact" type="text" inputMode="email" placeholder="e.g. john@example.com or 9876543210" className="h-11" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Insurer Provider</Label>
+                      <Select required>
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Select insurer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INSURERS.map((ins) => (
+                            <SelectItem key={ins} value={ins.toLowerCase().replace(/\s+/g, '-')}>
+                              {ins}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="policy">Policy Number</Label>
+                      <div className="relative">
+                        <CreditCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="policy" name="policy" placeholder="e.g. POL-123456" className="h-11 pl-10" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="sumInsured">Sum Insured (INR)</Label>
+                      <div className="relative">
+                        <IndianRupee className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="sumInsured" name="sumInsured" type="number" min="0" placeholder="e.g. 500000" className="h-11 pl-10" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label>Upload Health Card / Policy Document (Optional)</Label>
+                      <label
+                        htmlFor="doc"
+                        className="group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-muted/40 px-6 py-8 text-center transition-all hover:border-accent/50 hover:bg-accent/5 tap-highlight-none"
+                      >
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent/10 text-accent transition-transform group-hover:scale-110">
+                          <Upload className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {fileName ?? 'Click to upload or drag & drop'}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Upload your Health ID Card or Policy Copy to auto-verify your coverage details. PDF, JPG, PNG accepted.
+                          </p>
+                        </div>
+                        <input
+                          id="doc"
+                          name="doc"
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="hidden"
+                          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+                        />
+                      </label>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pw">Password</Label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="pw" name="pw" type="password" placeholder="••••••••" className="h-11 pl-10" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPw">Confirm Password</Label>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input id="confirmPw" name="confirmPw" type="password" placeholder="••••••••" className="h-11 pl-10" required />
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="flex items-start gap-3">
                   <Checkbox id="agree" checked={agree} onCheckedChange={(v) => setAgree(v === true)} className="mt-0.5" />

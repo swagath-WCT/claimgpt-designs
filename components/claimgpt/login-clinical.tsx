@@ -29,7 +29,7 @@ import {
   TiltCard,
 } from '@/components/claimgpt/effects';
 import { cn } from '@/lib/utils';
-import { authenticateWithPassword } from '@/lib/auth';
+import { authenticateWithPassword, getAuthErrorField, type AuthErrorField } from '@/lib/auth';
 
 type Role = 'patient' | 'tpa';
 
@@ -39,11 +39,13 @@ export function LoginClinical() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authErrorField, setAuthErrorField] = useState<AuthErrorField | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
     setErrorMessage(null);
+    setAuthErrorField(null);
 
     const form = e.currentTarget;
     const identifier = (form.elements.namedItem('c-email') as HTMLInputElement | null)?.value || '';
@@ -51,6 +53,7 @@ export function LoginClinical() {
 
     if (!identifier || !password) {
       setErrorMessage('Please enter your email address and password.');
+      setAuthErrorField(!identifier ? 'username' : 'password');
       setSubmitting(false);
       return;
     }
@@ -61,7 +64,9 @@ export function LoginClinical() {
         router.replace('/app');
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to sign in.');
+      const message = error instanceof Error ? error.message : 'Unable to sign in.';
+      setErrorMessage(message);
+      setAuthErrorField(getAuthErrorField(message));
       setSubmitting(false);
     }
   };
@@ -168,7 +173,8 @@ export function LoginClinical() {
                 'flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all tap-highlight-none',
                 role === r
                   ? 'glass text-foreground shadow-elevation-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+                authErrorField === 'role' ? 'border border-red-400 text-red-400' : ''
               )}
             >
               {r === 'patient' ? <User className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
@@ -193,7 +199,10 @@ export function LoginClinical() {
                     ? 'e.g. john@example.com or 9876543210'
                     : 'you@yourcompany.com'
                 }
-                className="h-12 pl-10"
+                className={cn(
+                  'h-12 pl-10',
+                  authErrorField === 'username' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                )}
                 required
               />
             </div>
@@ -213,7 +222,10 @@ export function LoginClinical() {
                   id="c-pw"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
-                  className="h-12 pl-10 pr-10"
+                  className={cn(
+                    'h-12 pl-10 pr-10',
+                    authErrorField === 'password' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                  )}
                   required
                 />
                 <button

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { authenticateWithPassword, type AuthRole } from '@/lib/auth';
 import {
   ArrowLeft,
   ArrowRight,
@@ -68,10 +69,36 @@ export function RegisterLedger() {
     }
 
     try {
-      const session = await registerAndSignIn({ username: email, password, role });
-      if (session) {
-        router.replace('/app');
+      const passwordHash = await (globalThis as typeof globalThis & { crypto: Crypto }).crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(password),
+      ).then((digest) => Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join(''));
+
+      const payload: Record<string, unknown> = {
+        username: email,
+        password_hash: `sha256$${passwordHash}`,
+        role,
+        first_name: (form.elements.namedItem('l-firstName') as HTMLInputElement | null)?.value || undefined,
+        last_name: (form.elements.namedItem('l-lastName') as HTMLInputElement | null)?.value || undefined,
+        dob: (form.elements.namedItem('l-dob') as HTMLInputElement | null)?.value || undefined,
+        gender: undefined,
+        policy: (form.elements.namedItem('l-policy') as HTMLInputElement | null)?.value || undefined,
+        sum_insured: (form.elements.namedItem('l-sumInsured') as HTMLInputElement | null)?.value || undefined,
+      };
+
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof (data as any).error === 'string' ? (data as any).error : 'Unable to create the account.');
       }
+
+      await authenticateWithPassword({ username: email, password, role });
+      router.replace('/app');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Unable to complete registration.');
       setSubmitting(false);

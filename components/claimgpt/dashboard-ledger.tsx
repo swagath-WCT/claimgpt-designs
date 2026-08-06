@@ -360,11 +360,13 @@ export function DashboardLedger() {
                     {PIPELINE.map((p, i) => {
                       const isDone = i <= s.stageIndex;
                       return (
-                        <div key={p.key} className={cn(
-                        <div key={p.key} className={cn(
-                          "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
-                          isDone ? "bg-amber-500/20 border-amber-500/40 text-amber-200" : "bg-[#060b18]/80 border-white/5 text-slate-600"
-                        )}>
+                        <div
+                          key={p.key}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
+                            isDone ? "bg-amber-500/20 border-amber-500/40 text-amber-200" : "bg-[#060b18]/80 border-white/5 text-slate-600"
+                          )}
+                        >
                           <CheckCircle2 className={cn("h-3 w-3 flex-none", isDone ? "text-amber-400" : "text-slate-700")} />
                           <span className="truncate">{p.label}</span>
                         </div>

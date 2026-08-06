@@ -2,152 +2,98 @@ import { NextRequest, NextResponse } from 'next/server';
 
 interface RegisterBody {
   username: string;
-  password: string;
+  password_hash?: string;
   role: 'patient' | 'tpa';
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  organization?: string;
+  employee_id?: string;
+  dob?: string;
+  gender?: string;
+  policy?: string;
+  sum_insured?: string | number;
 }
 
-function getKeycloakBaseUrl() {
-  return (process.env.NEXT_PUBLIC_KEYCLOAK_URL || 'http://localhost:8080').replace(/\/+$/, '');
-}
+const INGRESS_BASE = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001';
 
-function getRealm() {
-  return process.env.NEXT_PUBLIC_KEYCLOAK_REALM || 'claimgpt';
-}
+async function proxyToIngress(path: string, body?: unknown) {
+  const url = `${INGRESS_BASE}${path}`;
 
-async function getAdminAccessToken() {
-  const adminUsername = process.env.KEYCLOAK_ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.KEYCLOAK_ADMIN_PASSWORD || 'admin';
-  const clientId = process.env.KEYCLOAK_ADMIN_CLIENT_ID || 'admin-cli';
-
-  const response = await fetch(`${getKeycloakBaseUrl()}/realms/master/protocol/openid-connect/token`, {
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: clientId,
-      username: adminUsername,
-      password: adminPassword,
-      scope: 'openid',
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  const data = await response.json().catch(() => ({}));
-  const accessTokenValue = (data as Record<string, unknown>).access_token;
-  const accessToken = typeof accessTokenValue === 'string' ? accessTokenValue : undefined;
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
 
-  if (!response.ok || !accessToken) {
-    throw new Error('Unable to authenticate with Keycloak admin API.');
-  }
+  let lastError: Error | null = null;
+  for (const url of candidates) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
 
-  return accessToken;
-}
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        return { res, data };
+      }
 
-async function ensureRealmRole(adminToken: string, roleName: string) {
-  const response = await fetch(`${getKeycloakBaseUrl()}/admin/realms/${getRealm()}/roles/${roleName}`, {
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-    },
-  });
-
-  if (response.ok) {
-    return;
-  }
-
-  if (response.status === 404) {
-    const createResponse = await fetch(`${getKeycloakBaseUrl()}/admin/realms/${getRealm()}/roles`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${adminToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ name: roleName }),
-    });
-
-    if (!createResponse.ok) {
-      throw new Error('Unable to create the requested Keycloak role.');
+      if (res.status !== 404) {
+        return { res, data };
+      }
+      lastError = new Error(`Ingress endpoint returned 404 for ${url}`);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Ingress request failed');
     }
   }
-}
 
-async function getRoleRepresentation(adminToken: string, roleName: string) {
-  const response = await fetch(`${getKeycloakBaseUrl()}/admin/realms/${getRealm()}/roles/${roleName}`, {
-    headers: {
-      Authorization: `Bearer ${adminToken}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Unable to fetch the Keycloak role representation.');
-  }
-
-  return response.json();
+  throw lastError || new Error('Ingress request failed');
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as RegisterBody;
 
-    if (!body?.username || !body?.password || !body?.role) {
+    if (!body?.username || !body?.role || !(body.password_hash && body.password_hash.trim())) {
       return NextResponse.json({ error: 'Missing required registration fields.' }, { status: 400 });
     }
 
-    const adminToken = await getAdminAccessToken();
-    const roleName: string = body.role === 'patient' ? 'patient' : 'tpa';
+    // Build payload for ingress service to create local user/profile records
+    const profilePayload: Record<string, unknown> = {
+      provider: 'local',
+      username: body.username,
+      password_hash: body.password_hash,
+      role: body.role === 'patient' ? 'submitter' : 'reviewer',
+      first_name: body.first_name,
+      last_name: body.last_name,
+      phone: body.phone,
+      organization: body.organization,
+      employee_id: body.employee_id,
+      dob: body.dob,
+      gender: body.gender,
+      policy: body.policy,
+      sum_insured: body.sum_insured,
+    };
 
-    await ensureRealmRole(adminToken, roleName);
-
-    const createUserResponse = await fetch(`${getKeycloakBaseUrl()}/admin/realms/${getRealm()}/users`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${adminToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: body.username,
-        email: body.username,
-        enabled: true,
-        emailVerified: true,
-        credentials: [
-          {
-            type: 'password',
-            value: body.password,
-            temporary: false,
-          },
-        ],
-      }),
-    });
-
-    if (!createUserResponse.ok) {
-      const message = await createUserResponse.text();
-      return NextResponse.json({ error: message || 'Unable to create the Keycloak user.' }, { status: createUserResponse.status });
+    const { res, data } = await proxyToIngress('/auth/register', profilePayload);
+    if (!res.ok) {
+      const msg =
+        typeof (data as any).detail === 'string'
+          ? (data as any).detail
+          : typeof (data as any).error === 'string'
+            ? (data as any).error
+            : typeof (data as any).message === 'string'
+              ? (data as any).message
+              : 'Ingress registration failed.';
+      return NextResponse.json({ error: msg }, { status: res.status });
     }
 
-    const location = createUserResponse.headers.get('location');
-    const userId = location?.split('/').filter(Boolean).pop();
-
-    if (!userId) {
-      return NextResponse.json({ error: 'The Keycloak user was created but its ID could not be determined.' }, { status: 500 });
-    }
-
-    const roleRepresentation = await getRoleRepresentation(adminToken, roleName as string);
-
-    const assignRoleResponse = await fetch(`${getKeycloakBaseUrl()}/admin/realms/${getRealm()}/users/${userId}/role-mappings/realm`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${adminToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify([roleRepresentation]),
-    });
-
-    if (!assignRoleResponse.ok) {
-      const message = await assignRoleResponse.text();
-      return NextResponse.json({ error: message || 'The user was created but the role could not be assigned.' }, { status: assignRoleResponse.status });
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, detail: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Registration failed.' }, { status: 500 });
   }
