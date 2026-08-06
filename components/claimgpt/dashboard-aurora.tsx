@@ -381,10 +381,13 @@ export function DashboardAurora() {
                     {PIPELINE.map((p, i) => {
                       const isDone = i <= s.stageIndex;
                       return (
-                        <div key={p.key} className={cn(
-                          "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
-                          isDone ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-200" : "bg-slate-950/60 border-white/5 text-slate-600"
-                        )}>
+                        <div
+                          key={p.key}
+                          className={cn(
+                            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
+                            isDone ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-200" : "bg-slate-950/60 border-white/5 text-slate-600"
+                          )}
+                        >
                           <CheckCircle2 className={cn("h-3 w-3 flex-none", isDone ? "text-cyan-400" : "text-slate-700")} />
                           <span className="truncate">{p.label}</span>
                         </div>
@@ -411,7 +414,7 @@ export function DashboardAurora() {
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {/* Left: Document Viewer */}
                     <div className="rounded-xl border border-cyan-500/20 bg-slate-950 p-2 overflow-hidden min-h-[380px] flex flex-col">
-                      <DocumentViewer zoom={s.zoom} setZoom={s.setZoom} hoveredField={s.hoveredField} filename={s.files[0]?.name || (s.claimId ? `${s.claimId}.pdf` : "hospital_bill_main.pdf")} dark />
+                      <DocumentViewer zoom={s.zoom} setZoom={s.setZoom} hoveredField={s.hoveredField} filename={s.files[0]?.name || (s.claimId ? `${s.claimId}.pdf` : 'hospital_bill_main.pdf')} />
                     </div>
 
                     {/* Right: Extracted Patient & Claim Metadata */}

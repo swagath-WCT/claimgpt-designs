@@ -27,6 +27,7 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 import { cn } from '@/lib/utils';
+import { authenticateWithPassword, getAuthErrorField, type AuthErrorField } from '@/lib/auth';
 
 type Role = 'patient' | 'tpa';
 
@@ -35,14 +36,37 @@ export function LoginLedger() {
   const [role, setRole] = useState<Role>('patient');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authErrorField, setAuthErrorField] = useState<AuthErrorField | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+    setAuthErrorField(null);
+
+    const form = e.currentTarget;
+    const identifier = (form.elements.namedItem('l-email') as HTMLInputElement | null)?.value || '';
+    const password = (form.elements.namedItem('l-pw') as HTMLInputElement | null)?.value || '';
+
+    if (!identifier || !password) {
+      setErrorMessage('Please enter your email address and password.');
+      setAuthErrorField(!identifier ? 'username' : 'password');
       setSubmitting(false);
-      router.push('/app');
-    }, 500);
+      return;
+    }
+
+    try {
+      const session = await authenticateWithPassword({ username: identifier, password, role });
+      if (session) {
+        router.replace('/app');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign in.';
+      setErrorMessage(message);
+      setAuthErrorField(getAuthErrorField(message));
+      setSubmitting(false);
+    }
   };
 
   const inputCls =
@@ -148,7 +172,8 @@ export function LoginLedger() {
                     'flex flex-col items-center gap-1.5 rounded-xl border px-4 py-4 text-center transition-all tap-highlight-none',
                     role === r
                       ? 'border-teal-400 bg-teal-400/10 shadow-[0_0_30px_-8px_rgba(16,185,129,0.4)]'
-                      : 'border-white/10 bg-white/5 hover:border-white/20'
+                      : 'border-white/10 bg-white/5 hover:border-white/20',
+                    authErrorField === 'role' ? 'border-red-400 text-red-400' : ''
                   )}
                 >
                   {r === 'patient' ? (
@@ -179,7 +204,10 @@ export function LoginLedger() {
                         ? 'e.g. john@example.com or 9876543210'
                         : 'you@yourcompany.com'
                     }
-                    className={`${inputCls} pl-10`}
+                    className={cn(
+                      `${inputCls} pl-10`,
+                      authErrorField === 'username' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                    )}
                     required
                   />
                 </div>
@@ -201,7 +229,10 @@ export function LoginLedger() {
                       id="l-pw"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="••••••••"
-                      className={`${inputCls} pl-10 pr-10`}
+                      className={cn(
+                        `${inputCls} pl-10 pr-10`,
+                        authErrorField === 'password' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                      )}
                       required
                     />
                     <button
@@ -216,6 +247,11 @@ export function LoginLedger() {
                 </div>
               )}
 
+              {errorMessage ? (
+                <p className="rounded-lg border border-red-200/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                  {errorMessage}
+                </p>
+              ) : null}
               <MagneticButton
                 type="submit"
                 disabled={submitting}

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { authenticateWithPassword, type AuthRole } from '@/lib/auth';
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { INSURERS } from '@/lib/claimgpt-data';
+import { registerAndSignIn, type AuthRole } from '@/lib/auth';
 import {
   AuroraBackground,
   GradientText,
@@ -38,17 +40,69 @@ import {
 
 export function RegisterLedger() {
   const router = useRouter();
+  const [role, setRole] = useState<AuthRole>('patient');
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+
+    const form = e.currentTarget;
+    const email = (form.elements.namedItem('l-contact') as HTMLInputElement | null)?.value || '';
+    const password = (form.elements.namedItem('l-pw') as HTMLInputElement | null)?.value || '';
+    const confirmPassword = (form.elements.namedItem('l-confirmPw') as HTMLInputElement | null)?.value || '';
+
+    if (!email || !password || !confirmPassword) {
+      setErrorMessage('Please enter your email address and password.');
       setSubmitting(false);
-      router.push('/app');
-    }, 1000);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Password confirmation does not match.');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const passwordHash = await (globalThis as typeof globalThis & { crypto: Crypto }).crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(password),
+      ).then((digest) => Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join(''));
+
+      const payload: Record<string, unknown> = {
+        username: email,
+        password_hash: `sha256$${passwordHash}`,
+        role,
+        first_name: (form.elements.namedItem('l-firstName') as HTMLInputElement | null)?.value || undefined,
+        last_name: (form.elements.namedItem('l-lastName') as HTMLInputElement | null)?.value || undefined,
+        dob: (form.elements.namedItem('l-dob') as HTMLInputElement | null)?.value || undefined,
+        gender: undefined,
+        policy: (form.elements.namedItem('l-policy') as HTMLInputElement | null)?.value || undefined,
+        sum_insured: (form.elements.namedItem('l-sumInsured') as HTMLInputElement | null)?.value || undefined,
+      };
+
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof (data as any).error === 'string' ? (data as any).error : 'Unable to create the account.');
+      }
+
+      await authenticateWithPassword({ username: email, password, role });
+      router.replace('/app');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to complete registration.');
+      setSubmitting(false);
+    }
   };
 
   const inputCls = 'h-11 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500 focus-visible:ring-teal-400';
@@ -74,7 +128,7 @@ export function RegisterLedger() {
             <div className="mb-6 flex items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-md border border-teal-400/30 bg-teal-400/10 px-3 py-1.5 text-xs font-semibold text-teal-300">
                 <UserCircle className="h-4 w-4" />
-                Account Role: User / Patient
+                Account Role: {role === 'patient' ? 'Patient / Submitter' : 'TPA / Reviewer'}
               </span>
             </div>
             <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
@@ -86,6 +140,18 @@ export function RegisterLedger() {
           </StaggerItem>
 
           <StaggerItem index={1} className="mt-6">
+            <div className="mb-4 flex flex-wrap gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
+              {(['patient', 'tpa'] as AuthRole[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setRole(option)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${role === option ? 'bg-teal-500 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  {option === 'patient' ? 'Patient / Submitter' : 'TPA / Reviewer'}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <SSOButton provider="google" variant="dark" />
               <SSOButton provider="microsoft" variant="dark" />
@@ -231,6 +297,11 @@ export function RegisterLedger() {
                   </Label>
                 </div>
 
+                {errorMessage ? (
+                  <p className="rounded-lg border border-red-200/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                    {errorMessage}
+                  </p>
+                ) : null}
                 <MagneticButton
                   type="submit"
                   disabled={submitting || !agree}

@@ -1,8 +1,10 @@
 /**
  * Resilient API client for ClaimGPT
  * Connects UI to ClaimGPT Docker backend (http://localhost:8000)
- * Includes Network Resiliency & Offline Fallback for low/no internet.
+ * Includes Network Resiliency, Bearer Auth & Offline Fallback.
  */
+
+import { getStoredAuthSession } from '@/lib/auth';
 
 export const INGRESS_API = "http://localhost:8000/ingress";
 export const SUBMISSION_API = "http://localhost:8000/submission";
@@ -44,16 +46,30 @@ export interface RecentClaimSummary {
   total_amount?: string;
 }
 
+export function getAuthHeaders() {
+  const session = getStoredAuthSession();
+  const headers: Record<string, string> = {};
+  if (session?.accessToken) {
+    headers.Authorization = `Bearer ${session.accessToken}`;
+  }
+  return headers;
+}
+
 /**
- * Resilient safeFetch wrapper with timeout & offline failure catch.
+ * Resilient safeFetch wrapper with timeout, bearer auth & offline failure catch.
  * Prevents unhandled network exceptions when internet is down or slow.
  */
 async function safeFetch(url: string, options?: RequestInit, timeoutMs = 8000): Promise<Response | null> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    const authHeaders = getAuthHeaders();
     const res = await fetch(url, {
       ...options,
+      headers: {
+        ...authHeaders,
+        ...(options?.headers || {}),
+      },
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
