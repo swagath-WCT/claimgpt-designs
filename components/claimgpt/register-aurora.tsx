@@ -54,16 +54,20 @@ export function RegisterAurora() {
     setErrorMessage(null);
 
     const form = e.currentTarget;
-    const password = (form.elements.namedItem('pw') as HTMLInputElement | null)?.value || '';
-    const confirmPassword = (form.elements.namedItem('confirmPw') as HTMLInputElement | null)?.value || '';
+    const getValue = (id: string) =>
+      (form.querySelector(`#${id}`) as HTMLInputElement | null)?.value ||
+      (form.elements.namedItem(id) as HTMLInputElement | null)?.value || '';
+
+    const password = getValue('pw');
+    const confirmPassword = getValue('confirmPw');
 
     // Collect fields depending on role
-    const firstName = (form.elements.namedItem('firstName') as HTMLInputElement | null)?.value || '';
-    const lastName = (form.elements.namedItem('lastName') as HTMLInputElement | null)?.value || '';
-    const email = (form.elements.namedItem('contact') as HTMLInputElement | null)?.value || '';
-    const mobile = (form.elements.namedItem('mobile') as HTMLInputElement | null)?.value || '';
-    const organization = (form.elements.namedItem('organization') as HTMLInputElement | null)?.value || '';
-    const employeeId = (form.elements.namedItem('employeeId') as HTMLInputElement | null)?.value || '';
+    const firstName = getValue('firstName');
+    const lastName = getValue('lastName');
+    const email = getValue('contact');
+    const mobile = getValue('mobile');
+    const organization = getValue('organization');
+    const employeeId = getValue('employeeId');
 
     if (!email || !password || !confirmPassword) {
       setErrorMessage('Please enter your email address and password.');
@@ -119,7 +123,24 @@ export function RegisterAurora() {
         throw new Error(msg);
       }
 
-      // After server-side creation, sign in locally / via password grant
+      // After server-side creation, save user metadata to localStorage for profile card display
+      const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+      const policy = (form.elements.namedItem('policy') as HTMLInputElement | null)?.value || '';
+      const sumInsured = (form.elements.namedItem('sumInsured') as HTMLInputElement | null)?.value || '';
+      const dob = (form.elements.namedItem('dob') as HTMLInputElement | null)?.value || '';
+      const gender = (form.elements.namedItem('gender') as HTMLInputElement | null)?.value || '';
+
+      try {
+        localStorage.setItem('claimgpt_user_name', fullName);
+        localStorage.setItem('claimgpt_user_email', email);
+        if (policy) localStorage.setItem('claimgpt_user_policy', policy);
+        if (sumInsured) localStorage.setItem('claimgpt_user_sum', sumInsured);
+        if (dob) localStorage.setItem('claimgpt_user_dob', dob);
+        if (gender) localStorage.setItem('claimgpt_user_gender', gender);
+      } catch {
+        /* ignore */
+      }
+
       await authenticateWithPassword({ username: email, password, role });
       router.replace('/app');
     } catch (error) {

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { authenticateWithPassword, type AuthRole } from '@/lib/auth';
+import { authenticateWithPassword } from '@/lib/auth';
 import {
   ArrowLeft,
   ArrowRight,
@@ -53,9 +53,19 @@ export function RegisterClinical() {
     setErrorMessage(null);
 
     const form = e.currentTarget;
-    const email = (form.elements.namedItem('c-contact') as HTMLInputElement | null)?.value || '';
-    const password = (form.elements.namedItem('c-pw') as HTMLInputElement | null)?.value || '';
-    const confirmPassword = (form.elements.namedItem('c-confirmPw') as HTMLInputElement | null)?.value || '';
+    const getValue = (id: string) =>
+      (form.querySelector(`#${id}`) as HTMLInputElement | null)?.value ||
+      (form.elements.namedItem(id) as HTMLInputElement | null)?.value || '';
+
+    const email = getValue('c-contact');
+    const password = getValue('c-pw');
+    const confirmPassword = getValue('c-confirmPw');
+    const firstName = getValue('c-firstName');
+    const lastName = getValue('c-lastName');
+    const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+    const policy = getValue('c-policy');
+    const sumInsured = getValue('c-sumInsured');
+    const dob = getValue('c-dob');
 
     if (!email || !password || !confirmPassword) {
       setErrorMessage('Please enter your email address and password.');
@@ -79,12 +89,12 @@ export function RegisterClinical() {
         username: email,
         password_hash: `sha256$${passwordHash}`,
         role,
-        first_name: (form.elements.namedItem('c-firstName') as HTMLInputElement | null)?.value || undefined,
-        last_name: (form.elements.namedItem('c-lastName') as HTMLInputElement | null)?.value || undefined,
-        dob: (form.elements.namedItem('c-dob') as HTMLInputElement | null)?.value || undefined,
+        first_name: firstName || undefined,
+        last_name: lastName || undefined,
+        dob: dob || undefined,
         gender: undefined,
-        policy: (form.elements.namedItem('c-policy') as HTMLInputElement | null)?.value || undefined,
-        sum_insured: (form.elements.namedItem('c-sumInsured') as HTMLInputElement | null)?.value || undefined,
+        policy: policy || undefined,
+        sum_insured: sumInsured || undefined,
       };
 
       const res = await fetch('/api/auth/register', {
@@ -96,6 +106,16 @@ export function RegisterClinical() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(typeof (data as any).error === 'string' ? (data as any).error : 'Unable to create the account.');
+      }
+
+      try {
+        localStorage.setItem('claimgpt_user_name', fullName);
+        localStorage.setItem('claimgpt_user_email', email);
+        if (policy) localStorage.setItem('claimgpt_user_policy', policy);
+        if (sumInsured) localStorage.setItem('claimgpt_user_sum', sumInsured);
+        if (dob) localStorage.setItem('claimgpt_user_dob', dob);
+      } catch {
+        /* ignore */
       }
 
       await authenticateWithPassword({ username: email, password, role });

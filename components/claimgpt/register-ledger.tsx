@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { authenticateWithPassword, type AuthRole } from '@/lib/auth';
+import { authenticateWithPassword } from '@/lib/auth';
 import {
   ArrowLeft,
   ArrowRight,
@@ -52,9 +52,19 @@ export function RegisterLedger() {
     setErrorMessage(null);
 
     const form = e.currentTarget;
-    const email = (form.elements.namedItem('l-contact') as HTMLInputElement | null)?.value || '';
-    const password = (form.elements.namedItem('l-pw') as HTMLInputElement | null)?.value || '';
-    const confirmPassword = (form.elements.namedItem('l-confirmPw') as HTMLInputElement | null)?.value || '';
+    const getValue = (id: string) =>
+      (form.querySelector(`#${id}`) as HTMLInputElement | null)?.value ||
+      (form.elements.namedItem(id) as HTMLInputElement | null)?.value || '';
+
+    const email = getValue('l-contact');
+    const password = getValue('l-pw');
+    const confirmPassword = getValue('l-confirmPw');
+    const firstName = getValue('l-firstName');
+    const lastName = getValue('l-lastName');
+    const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+    const policy = getValue('l-policy');
+    const sumInsured = getValue('l-sumInsured');
+    const dob = getValue('l-dob');
 
     if (!email || !password || !confirmPassword) {
       setErrorMessage('Please enter your email address and password.');
@@ -78,12 +88,12 @@ export function RegisterLedger() {
         username: email,
         password_hash: `sha256$${passwordHash}`,
         role,
-        first_name: (form.elements.namedItem('l-firstName') as HTMLInputElement | null)?.value || undefined,
-        last_name: (form.elements.namedItem('l-lastName') as HTMLInputElement | null)?.value || undefined,
-        dob: (form.elements.namedItem('l-dob') as HTMLInputElement | null)?.value || undefined,
+        first_name: firstName || undefined,
+        last_name: lastName || undefined,
+        dob: dob || undefined,
         gender: undefined,
-        policy: (form.elements.namedItem('l-policy') as HTMLInputElement | null)?.value || undefined,
-        sum_insured: (form.elements.namedItem('l-sumInsured') as HTMLInputElement | null)?.value || undefined,
+        policy: policy || undefined,
+        sum_insured: sumInsured || undefined,
       };
 
       const res = await fetch('/api/auth/register', {
@@ -95,6 +105,16 @@ export function RegisterLedger() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(typeof (data as any).error === 'string' ? (data as any).error : 'Unable to create the account.');
+      }
+
+      try {
+        localStorage.setItem('claimgpt_user_name', fullName);
+        localStorage.setItem('claimgpt_user_email', email);
+        if (policy) localStorage.setItem('claimgpt_user_policy', policy);
+        if (sumInsured) localStorage.setItem('claimgpt_user_sum', sumInsured);
+        if (dob) localStorage.setItem('claimgpt_user_dob', dob);
+      } catch {
+        /* ignore */
       }
 
       await authenticateWithPassword({ username: email, password, role });

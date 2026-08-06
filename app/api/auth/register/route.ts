@@ -28,31 +28,6 @@ async function proxyToIngress(path: string, body?: unknown) {
 
   const data = await res.json().catch(() => ({}));
   return { res, data };
-
-  let lastError: Error | null = null;
-  for (const url of candidates) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        return { res, data };
-      }
-
-      if (res.status !== 404) {
-        return { res, data };
-      }
-      lastError = new Error(`Ingress endpoint returned 404 for ${url}`);
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Ingress request failed');
-    }
-  }
-
-  throw lastError || new Error('Ingress request failed');
 }
 
 export async function POST(request: NextRequest) {
