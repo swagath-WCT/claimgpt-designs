@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangle,
   Bell,
   Check,
   CheckCircle2,
@@ -24,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
+import { DocumentPreviewModal } from '@/components/claimgpt/document-preview-modal';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -325,14 +327,32 @@ export function DashboardLedger() {
                       <p className="text-[10px] text-amber-300/60">Claim ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "CLM-2026-08842"}</p>
                     </div>
                     <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300 border border-amber-500/40 flex items-center gap-1">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" /> 100% COMPLETE
+                      {s.isDocumentsRequested ? (
+                        <>
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                          <span className="text-amber-400">PAUSED — ACTION REQUIRED</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" />
+                          <span>{s.progress}% COMPLETE</span>
+                        </>
+                      )}
                     </span>
                   </div>
 
                   {/* Progress Bar */}
                   <div className="space-y-1 mb-4">
                     <div className="h-2 w-full rounded-full bg-[#060b18] overflow-hidden border border-amber-500/20">
-                      <div className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-500" style={{ width: `${s.progress}%` }} />
+                      <div 
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          s.isDocumentsRequested
+                            ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]"
+                            : "bg-gradient-to-r from-amber-500 to-amber-400"
+                        )}
+                        style={{ width: `${s.progress}%` }} 
+                      />
                     </div>
                     <div className="flex justify-between text-[10px] font-bold text-amber-300/70 px-0.5">
                       <span>0%</span>
@@ -345,7 +365,7 @@ export function DashboardLedger() {
                     {PIPELINE.map((p, i) => {
                       const isDone = i <= s.stageIndex;
                       return (
-                        <div key={p.id} className={cn(
+                        <div key={p.key} className={cn(
                           "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold border transition-all flex-1 min-w-[100px] justify-center",
                           isDone ? "bg-amber-500/20 border-amber-500/40 text-amber-200" : "bg-[#060b18]/80 border-white/5 text-slate-600"
                         )}>
@@ -355,6 +375,40 @@ export function DashboardLedger() {
                       );
                     })}
                   </div>
+
+                  {s.isDocumentsRequested && (
+                    <div className="mt-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 animate-fade-in text-left">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div className="space-y-1 w-full">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">Mandatory Document Missing</h4>
+                          <p className="text-xs text-amber-300/80">
+                            We detected incomplete information in your claim upload. Please upload the following items to resume analysis:
+                          </p>
+                          <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 mt-1 text-amber-200">
+                            {s.missingGroups.map((grp: string) => (
+                              <li key={grp}>{grp}</li>
+                            ))}
+                          </ul>
+                          <div className="mt-3 flex items-center gap-3">
+                            <label className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm cursor-pointer hover:opacity-90">
+                              <input
+                                type="file"
+                                multiple
+                                hidden
+                                onChange={(e) => {
+                                  if (e.target.files?.length) {
+                                    s.handleUploadFile(Array.from(e.target.files));
+                                  }
+                                }}
+                              />
+                              <Upload className="h-3.5 w-3.5" /> Upload Missing Documents
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </StaggerItem>
 
@@ -366,16 +420,29 @@ export function DashboardLedger() {
                       <h2 className="text-sm font-bold text-white">Auditor Workspace &amp; Document Preview</h2>
                       <p className="text-[11px] text-amber-300/60">Extracted data &amp; bounding box highlights for selected claim.</p>
                     </div>
-                    <Button onClick={s.openReportModal} className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-xs font-bold text-slate-950 h-9 px-4 rounded-xl shadow-md border border-amber-400/40">
-                      <FileText className="mr-1.5 h-3.5 w-3.5" /> Full Audit Report
-                    </Button>
+                    {!s.isDocumentsRequested && (
+                      <Button onClick={s.openReportModal} className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-xs font-bold text-slate-950 h-9 px-4 rounded-xl shadow-md border border-amber-400/40">
+                        <FileText className="mr-1.5 h-3.5 w-3.5" /> Full Audit Report
+                      </Button>
+                    )}
                   </div>
 
                   {/* Split View: Document Viewer + Metadata */}
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {/* Left: Document Viewer */}
                     <div className="rounded-xl border border-amber-500/20 bg-[#060b18] p-2 overflow-hidden min-h-[380px] flex flex-col">
-                      <DocumentViewer s={s} />
+                      <DocumentViewer 
+                        claimId={s.claimId}
+                        zoom={s.zoom} 
+                        setZoom={s.setZoom} 
+                        hoveredField={s.hoveredField} 
+                        filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || s.files[0]?.name}
+                        documents={s.realPreview?.documents}
+                        activeDocumentId={s.activeDocumentId}
+                        onSelectDocument={s.setActiveDocumentId}
+                        onOpenDocModal={s.openDocModal}
+                        dark={true}
+                      />
                     </div>
 
                     {/* Right: Extracted Patient & Claim Metadata */}
@@ -449,6 +516,14 @@ export function DashboardLedger() {
 
       {/* Post-Processing Audit Report Modal */}
       <ClaimReportModal s={s} />
+      <DocumentPreviewModal 
+        isOpen={s.showDocModal} 
+        onClose={s.closeDocModal} 
+        claimId={s.claimId} 
+        patientName={s.patientName} 
+        documents={s.realPreview?.documents} 
+        initialDocId={s.activeDocumentId}
+      />
     </div>
   );
 }

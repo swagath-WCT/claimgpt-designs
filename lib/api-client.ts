@@ -6,9 +6,21 @@ export const INGRESS_API = "http://localhost:8000/ingress";
 export const SUBMISSION_API = "http://localhost:8000/submission";
 export const CHAT_API = "http://localhost:8000/chat";
 
+export interface ClaimDocumentPreview {
+  document_id?: string;
+  id?: string;
+  original_filename?: string;
+  file_name?: string;
+  doc_type: string;
+  display_title: string;
+  page_count: number;
+  pages: string[];
+}
+
 export interface RealClaimPreview {
   claim_id: string;
   status: string;
+  documents?: ClaimDocumentPreview[];
   parsed_fields: Record<string, string>;
   icd_codes: Array<{ code: string; description: string; confidence: number; estimated_cost?: number }>;
   cpt_codes: Array<{ code: string; description: string; confidence: number; estimated_cost?: number }>;

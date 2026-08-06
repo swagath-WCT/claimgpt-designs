@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   Eye,
@@ -51,10 +51,54 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   );
   const [expensesSaved, setExpensesSaved] = useState(false);
 
-  if (!s.showReportModal) return null;
-
   const preview = s.realPreview;
   const summary = preview?.summary;
+
+  useEffect(() => {
+    if (!s.showReportModal) return;
+
+    setPatientName(summary?.patient_name || s.patientName || 'Patient');
+    setHospitalName(summary?.hospital || s.hospitalName || 'Hospital');
+    setAdmissionDate(summary?.admission_date || s.admissionDate || '');
+    setDischargeDate(summary?.discharge_date || s.dischargeDate || '');
+    setDiagnosis(summary?.diagnosis || s.diagnosis || '');
+
+    const billed = preview?.billed_total ?? Number(summary?.total_amount ?? NaN);
+    setBilledAmount(Number.isFinite(billed) ? Number(billed) : s.total || 0);
+
+    setExpenses(
+      preview?.expenses?.length
+        ? preview.expenses.map((item, index) => ({
+            id: String(index + 1),
+            category: item.category || `Expense ${index + 1}`,
+            amount: Number(item.amount) || 0,
+          }))
+        : s.lineItems?.length
+          ? s.lineItems.map(item => ({ id: String(item.id), category: item.category, amount: item.amount }))
+          : [
+              { id: '1', category: 'Pharmacy & Supplies', amount: 8500 },
+              { id: '2', category: 'Emergency Room Charges', amount: 12000 },
+              { id: '3', category: 'Laboratory Diagnostics', amount: 4500 },
+            ]
+    );
+  }, [
+    s.showReportModal,
+    s.claimId,
+    s.patientName,
+    s.hospitalName,
+    s.admissionDate,
+    s.dischargeDate,
+    s.diagnosis,
+    s.total,
+    s.lineItems,
+    preview,
+    summary?.patient_name,
+    summary?.hospital,
+    summary?.admission_date,
+    summary?.discharge_date,
+    summary?.diagnosis,
+    summary?.total_amount,
+  ]);
 
   // Medical Codes (Read-Only)
   const icdCodes = preview?.icd_codes?.length
@@ -79,9 +123,14 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     { rule_name: 'Pre-existing Disease Waiting Period', severity: 'LOW', message: 'No PED exclusion applicable for acute injury admission', passed: true }
   ];
 
-  const riskScoreNum = summary?.risk_score !== undefined && summary?.risk_score !== null ? Math.round(summary.risk_score * 100) : 12;
+  const rawRiskScore = preview?.predictions?.[0]?.rejection_score ?? summary?.risk_score;
+  const riskScoreNum = rawRiskScore !== undefined && rawRiskScore !== null
+    ? Math.round(rawRiskScore <= 1 ? rawRiskScore * 100 : rawRiskScore)
+    : 12;
   const totalItemizedExpenses = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const expenseMismatch = Math.abs(billedAmount - totalItemizedExpenses);
+
+  if (!s.showReportModal) return null;
 
   const tpaUrl = s.tpaPdfViewUrl || s.tpaPdfUrl;
   const irdaUrl = s.irdaPdfViewUrl || s.irdaPdfUrl;
@@ -216,7 +265,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   <span className="text-[10px] font-medium text-slate-400">Extracted Fields</span>
                   <FileText className="h-3.5 w-3.5 text-purple-400" />
                 </div>
-                <p className="text-base sm:text-lg font-extrabold text-white mt-1">14</p>
+                <p className="text-base sm:text-lg font-extrabold text-white mt-1">{Object.keys(preview?.parsed_fields || {}).length || 0}</p>
                 <span className="text-[9px] font-semibold text-slate-400">OCR AI Verified</span>
               </div>
             </div>

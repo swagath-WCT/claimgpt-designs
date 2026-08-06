@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangle,
   Bell,
   Camera,
   Check,
@@ -25,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
+import { DocumentPreviewModal } from '@/components/claimgpt/document-preview-modal';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -381,17 +383,24 @@ export function DashboardClinical() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h2 className="text-sm font-bold text-foreground">Processing Pipeline</h2>
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-500/30">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          {s.progress}% COMPLETE
-                        </span>
+                        {s.isDocumentsRequested ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-700 border border-amber-500/30 animate-pulse">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                            PAUSED — ACTION REQUIRED
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-500/30">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            {s.progress}% COMPLETE
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Claim ID: <span className="font-mono font-medium text-foreground">{s.claimId || "CLM-2026-08842"}</span>
                       </p>
                     </div>
 
-                    {s.progress >= 100 || s.realPreview ? (
+                    {(s.progress >= 100 || s.realPreview) && !s.isDocumentsRequested ? (
                       <Button onClick={s.openReportModal} className="teal-gradient text-xs font-semibold text-white shadow-md animate-scale-in self-start sm:self-auto">
                         <FileText className="mr-1.5 h-4 w-4" /> View AI Report
                       </Button>
@@ -402,7 +411,12 @@ export function DashboardClinical() {
                   <div className="relative mt-3 mb-2 sm:mb-4">
                     <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden p-0.5 border border-border">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-600 transition-all duration-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          s.isDocumentsRequested
+                            ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]"
+                            : "bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-600 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+                        )}
                         style={{ width: `${Math.max(s.progress, 5)}%` }}
                       />
                     </div>
@@ -444,6 +458,40 @@ export function DashboardClinical() {
                       );
                     })}
                   </div>
+
+                  {s.isDocumentsRequested && (
+                    <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50/50 text-amber-900 animate-fade-in text-left">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div className="space-y-1 w-full">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">Mandatory Document Missing</h4>
+                          <p className="text-xs text-amber-700">
+                            We detected incomplete information in your claim upload. Please upload the following items to resume analysis:
+                          </p>
+                          <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 mt-1 text-amber-900">
+                            {s.missingGroups.map((grp: string) => (
+                              <li key={grp}>{grp}</li>
+                            ))}
+                          </ul>
+                          <div className="mt-3 flex items-center gap-3">
+                            <label className="teal-gradient inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm cursor-pointer hover:opacity-90">
+                              <input
+                                type="file"
+                                multiple
+                                hidden
+                                onChange={(e) => {
+                                  if (e.target.files?.length) {
+                                    s.handleUploadFile(Array.from(e.target.files));
+                                  }
+                                }}
+                              />
+                              <Upload className="h-3.5 w-3.5" /> Upload Missing Documents
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </SpotlightCard>
               </StaggerItem>
 
@@ -460,7 +508,18 @@ export function DashboardClinical() {
                     </Button>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2">
-                    <DocumentViewer zoom={s.zoom} setZoom={s.setZoom} hoveredField={s.hoveredField} filename={s.files[0]?.name || (s.claimId ? `${s.claimId}.pdf` : "hospital_bill_main.pdf")} className="border-b border-border lg:border-b-0 lg:border-r" />
+                    <DocumentViewer 
+                      claimId={s.claimId}
+                      zoom={s.zoom} 
+                      setZoom={s.setZoom} 
+                      hoveredField={s.hoveredField} 
+                      filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || s.files[0]?.name} 
+                      documents={s.realPreview?.documents} 
+                      activeDocumentId={s.activeDocumentId}
+                      onSelectDocument={s.setActiveDocumentId}
+                      onOpenDocModal={s.openDocModal}
+                      className="border-b border-border lg:border-b-0 lg:border-r" 
+                    />
                     <div className="flex flex-col">
                       <div className="border-b border-border bg-slate-50/60 px-5 py-3">
                         <h3 className="text-sm font-semibold text-foreground">Extracted Claim Data</h3>
@@ -511,6 +570,14 @@ export function DashboardClinical() {
         </StaggerContainer>
       </main>
       <ClaimReportModal s={s} />
+      <DocumentPreviewModal 
+        isOpen={s.showDocModal} 
+        onClose={s.closeDocModal} 
+        claimId={s.claimId} 
+        patientName={s.patientName} 
+        documents={s.realPreview?.documents} 
+        initialDocId={s.activeDocumentId}
+      />
     </div>
   );
 }

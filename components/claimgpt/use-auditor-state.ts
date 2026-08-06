@@ -29,15 +29,29 @@ export function scrollToPipeline() {
 }
 
 export function useAuditorState() {
+  const getDocumentKey = (doc?: { document_id?: string; id?: string } | null) =>
+    doc?.document_id || doc?.id || null;
+
+  const getPreviewDocumentKeys = (preview: RealClaimPreview | null) =>
+    (preview?.documents || [])
+      .map((doc) => getDocumentKey(doc))
+      .filter((docId): docId is string => Boolean(docId));
+
   const [progress, setProgress] = useState(0);
   const [activeStage, setActiveStage] = useState<Stage>('staged');
-  const [files, setFiles] = useState<{ name: string; size: string }[]>([]);
+  const [files, setFiles] = useState<{ name: string; size: string; type?: string }[]>([]);
   const [hoveredField, setHoveredField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [edited, setEdited] = useState<Record<string, boolean>>({});
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
 
   /* Modal state for full report preview — default FALSE */
   const [showReportModal, setShowReportModal] = useState(false);
+
+  /* Modal state for in-app document preview — default FALSE */
+  const [showDocModal, setShowDocModal] = useState(false);
+  const openDocModal = () => setShowDocModal(true);
+  const closeDocModal = () => setShowDocModal(false);
 
   /* File(s) pending analysis */
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -57,6 +71,52 @@ export function useAuditorState() {
 
   /* History list of past claims */
   const [recentClaims, setRecentClaims] = useState<RecentClaimSummary[]>([]);
+
+  const [isDocumentsRequested, setIsDocumentsRequested] = useState(false);
+  const [missingGroups, setMissingGroups] = useState<string[]>([]);
+
+  const checkStatus = (preview: RealClaimPreview | null) => {
+    if (!preview) {
+      setIsDocumentsRequested(false);
+      setMissingGroups([]);
+      return;
+    }
+    
+    if ((preview.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") {
+      setIsDocumentsRequested(true);
+      const docs = preview.documents || [];
+      const kyc_types = ["aadhaar_card", "pan_card", "identity_proof"];
+      const clinical_types = ["discharge_summary", "lab_report"];
+      const financial_types = ["hospital_bill", "pharmacy_bill"];
+      
+      const hasKyc = docs.some(d => kyc_types.includes((d.doc_type || "").toLowerCase()));
+      const hasClinical = docs.some(d => clinical_types.includes((d.doc_type || "").toLowerCase()));
+      const hasFinancial = docs.some(d => financial_types.includes((d.doc_type || "").toLowerCase()));
+      
+      const missing = [];
+      if (!hasClinical && !hasFinancial) missing.push("Hospital Documents (Discharge Summary / Hospital Bill)");
+      if (!hasKyc) missing.push("Identity / KYC Proof (Aadhaar / PAN / Passport)");
+      setMissingGroups(missing);
+    } else {
+      setIsDocumentsRequested(false);
+      setMissingGroups([]);
+    }
+  };
+
+  useEffect(() => {
+    checkStatus(realPreview);
+  }, [realPreview]);
+
+  useEffect(() => {
+    const documentKeys = getPreviewDocumentKeys(realPreview);
+
+    if (documentKeys.length === 0) {
+      setActiveDocumentId(null);
+      return;
+    }
+
+    setActiveDocumentId((current) => (current && documentKeys.includes(current) ? current : documentKeys[0]));
+  }, [realPreview?.claim_id, realPreview?.documents]);
 
   /* Helper to fetch list of past claims from backend */
   const reloadRecentClaims = async () => {
@@ -193,6 +253,7 @@ export function useAuditorState() {
     setUploading(false);
     setIsLiveSessionCompleted(false);
     setIsUploadOpen(true);
+    setActiveDocumentId(null);
   };
 
   /* Direct upload & instant analysis */
@@ -255,15 +316,25 @@ export function useAuditorState() {
       if (idToQuery) {
         try {
           const freshData = await fetchClaimPreview(idToQuery);
-          if (freshData && (freshData.summary || freshData.parsed_fields)) {
+          if (freshData) {
             setRealPreview(freshData);
             setClaimId(idToQuery);
+            
+            // Check if the backend paused the pipeline due to missing documents
+            if ((freshData.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") {
+              clearInterval(timer);
+              clearInterval(pollInterval);
+              setAnalyzing(false);
+              setIsLiveSessionCompleted(false);
+              setProgress(100);
+              setActiveStage('scoring');
+            }
           }
         } catch {
           /* ignore poll error */
         }
       }
-    }, 400);
+    }, 300);
 
     const timer = setInterval(async () => {
       p += 25;
@@ -361,6 +432,8 @@ export function useAuditorState() {
     setZoom,
     edited,
     markEdited,
+    activeDocumentId,
+    setActiveDocumentId,
     total,
     stageIndex,
     lineItems,
@@ -380,6 +453,10 @@ export function useAuditorState() {
     setShowReportModal,
     openReportModal,
     closeReportModal: () => setShowReportModal(false),
+    showDocModal,
+    setShowDocModal,
+    openDocModal,
+    closeDocModal,
     patientName,
     hospitalName,
     admissionDate,
@@ -392,6 +469,8 @@ export function useAuditorState() {
     recentClaims,
     selectClaim,
     reloadRecentClaims,
+    isDocumentsRequested,
+    missingGroups,
   };
 }
 
