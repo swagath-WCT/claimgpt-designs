@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react';
+import { authenticateWithPassword, getAuthErrorField, type AuthErrorField } from '@/lib/auth';
 import { BrandPanel } from '@/components/claimgpt/brand-panel';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { SSOButton } from '@/components/claimgpt/sso-button';
@@ -29,6 +30,9 @@ import {
   StaggerContainer,
   StaggerItem,
 } from '@/components/claimgpt/effects';
+import { cn } from '@/lib/utils';
+
+import { syncUserToBackend } from '@/lib/api-client';
 
 type Role = 'patient' | 'tpa';
 
@@ -37,14 +41,37 @@ export function LoginAurora() {
   const [role, setRole] = useState<Role>('patient');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [authErrorField, setAuthErrorField] = useState<AuthErrorField | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitting(true);
-    setTimeout(() => {
+    setErrorMessage(null);
+    setAuthErrorField(null);
+
+    const form = e.currentTarget;
+    const identifier = (form.elements.namedItem(role === 'tpa' ? 'tpa-email' : 'patient-id') as HTMLInputElement | null)?.value || '';
+    const password = (form.elements.namedItem(role === 'tpa' ? 'tpa-pw' : 'patient-pw') as HTMLInputElement | null)?.value || '';
+
+    if (!identifier || !password) {
+      setErrorMessage('Please enter your email address and password.');
+      setAuthErrorField(!identifier ? 'username' : 'password');
       setSubmitting(false);
-      router.push('/app');
-    }, 500);
+      return;
+    }
+
+    try {
+      const session = await authenticateWithPassword({ username: identifier, password, role });
+      if (session) {
+        router.replace('/app');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to sign in.';
+      setErrorMessage(message);
+      setAuthErrorField(getAuthErrorField(message));
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -91,11 +118,23 @@ export function LoginAurora() {
                 className="w-full"
               >
                 <TabsList className="glass grid h-12 w-full grid-cols-2">
-                  <TabsTrigger value="patient" className="gap-2">
+                  <TabsTrigger
+                  value="patient"
+                  className={cn(
+                    'gap-2',
+                    authErrorField === 'role' ? 'border-red-400 text-red-400' : ''
+                  )}
+                >
                     <User className="h-4 w-4" />
                     <span className="text-sm">User / Patient</span>
                   </TabsTrigger>
-                  <TabsTrigger value="tpa" className="gap-2">
+                  <TabsTrigger
+                    value="tpa"
+                    className={cn(
+                      'gap-2',
+                      authErrorField === 'role' ? 'border-red-400 text-red-400' : ''
+                    )}
+                  >
                     <Building2 className="h-4 w-4" />
                     <span className="text-sm">TPA Adjuster</span>
                   </TabsTrigger>
@@ -113,7 +152,10 @@ export function LoginAurora() {
                           inputMode="email"
                           autoComplete="username"
                           placeholder="e.g. john@example.com or 9876543210"
-                          className="h-12 pl-10"
+                          className={cn(
+                            'h-12 pl-10',
+                            authErrorField === 'username' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                          )}
                           required
                         />
                       </div>
@@ -132,7 +174,10 @@ export function LoginAurora() {
                           type={showPassword ? 'text' : 'password'}
                           autoComplete="current-password"
                           placeholder="••••••••"
-                          className="h-12 pl-10 pr-10"
+                          className={cn(
+                            'h-12 pl-10 pr-10',
+                            authErrorField === 'password' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                          )}
                           required
                         />
                         <button
@@ -145,6 +190,11 @@ export function LoginAurora() {
                         </button>
                       </div>
                     </div>
+                    {errorMessage ? (
+                      <p className="rounded-lg border border-red-200/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                        {errorMessage}
+                      </p>
+                    ) : null}
                     <MagneticButton
                       type="submit"
                       disabled={submitting}
@@ -171,16 +221,51 @@ export function LoginAurora() {
                         <Input
                           id="tpa-email"
                           type="email"
-                          autoComplete="work email"
+                          autoComplete="username"
                           placeholder="you@yourcompany.com"
-                          className="h-12 pl-10"
+                          className={cn(
+                            'h-12 pl-10',
+                            authErrorField === 'username' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                          )}
                           required
                         />
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        We&apos;ll send a secure sign-in link to your work email.
-                      </p>
                     </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="tpa-pw">Password</Label>
+                        <button type="button" className="text-xs font-medium text-accent hover:underline">
+                          Forgot password?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          id="tpa-pw"
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          placeholder="••••••••"
+                          className={cn(
+                            'h-12 pl-10 pr-10',
+                            authErrorField === 'password' ? 'border-red-400 ring-red-400 focus-visible:ring-red-400' : ''
+                          )}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    {errorMessage ? (
+                      <p className="rounded-lg border border-red-200/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+                        {errorMessage}
+                      </p>
+                    ) : null}
                     <MagneticButton
                       type="submit"
                       disabled={submitting}

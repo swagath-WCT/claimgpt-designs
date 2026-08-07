@@ -2,6 +2,8 @@
  * API client to connect bolt 3-design UI to ClaimGPT Docker backend (http://localhost:8000)
  */
 
+import { getStoredAuthSession } from '@/lib/auth';
+
 export const INGRESS_API = "http://localhost:8000/ingress";
 export const SUBMISSION_API = "http://localhost:8000/submission";
 export const CHAT_API = "http://localhost:8000/chat";
@@ -54,19 +56,34 @@ export interface RecentClaimSummary {
   total_amount?: string;
 }
 
+export function getAuthHeaders() {
+  const session = getStoredAuthSession();
+  const headers: Record<string, string> = {};
+  if (session?.accessToken) {
+    headers.Authorization = `Bearer ${session.accessToken}`;
+  }
+  return headers;
+}
+
 /**
  * Upload a document to the local Docker backend ingress service
  */
-export async function uploadClaimDocument(files: File | File[]): Promise<{ claim_id: string; document_id: string }> {
+export async function uploadClaimDocument(files: File | File[], userName?: string): Promise<{ claim_id: string; document_id: string }> {
   const formData = new FormData();
   const fileArray = Array.isArray(files) ? files : [files];
+  const fileNames = fileArray.map(f => f.name.toLowerCase());
   for (const f of fileArray) {
     formData.append("files", f);
+  }
+  if (userName) {
+    formData.append("policy_id", userName);
+    formData.append("patient_id", userName);
   }
 
   const res = await fetch(`${INGRESS_API}/claims`, {
     method: "POST",
     body: formData,
+    headers: getAuthHeaders(),
   });
 
   if (!res.ok) {
@@ -74,9 +91,43 @@ export async function uploadClaimDocument(files: File | File[]): Promise<{ claim
   }
 
   const data = await res.json();
-  const claimId = data.task_id || data.claim_id || data.id || (data.claims && data.claims[0]?.id);
-  const docId = data.document_id || (data.documents && data.documents[0]?.id) || "doc-1";
-  return { claim_id: claimId, document_id: docId };
+  const taskId = data.task_id || data.claim_id || data.id;
+  let finalClaimId = taskId;
+  let finalDocId = data.document_id || (data.documents && data.documents[0]?.id) || "doc-1";
+
+  // If the backend returned a queued Celery task ID, poll the claims list to resolve it to the database claim UUID.
+  if (taskId && (taskId.includes("-") || taskId.length > 8)) {
+    // Poll up to 15 times (approx 4.5 seconds max) to allow Celery worker to insert the DB record
+    for (let attempt = 0; attempt < 15; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      try {
+        const claimsListRes = await fetch(`${INGRESS_API}/claims?limit=10&t=${Date.now()}`, { cache: "no-store" });
+        if (claimsListRes.ok) {
+          const claimsData = await claimsListRes.json();
+          const claims = claimsData.claims || claimsData.results || (Array.isArray(claimsData) ? claimsData : []);
+          
+          // Find the claim that matches one of our uploaded file names
+          const matchingClaim = claims.find((c: any) => 
+            c.documents && c.documents.some((d: any) => 
+              d.file_name && fileNames.includes(d.file_name.toLowerCase())
+            )
+          );
+
+          if (matchingClaim) {
+            finalClaimId = matchingClaim.id || matchingClaim.claim_id;
+            if (matchingClaim.documents && matchingClaim.documents.length > 0) {
+              finalDocId = matchingClaim.documents[0].id;
+            }
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn("Error resolving claim ID from list:", err);
+      }
+    }
+  }
+
+  return { claim_id: finalClaimId, document_id: finalDocId };
 }
 
 /**
@@ -84,17 +135,20 @@ export async function uploadClaimDocument(files: File | File[]): Promise<{ claim
  */
 export async function fetchClaimProgress(claimId: string): Promise<{ percentage: number; step: string; status: string; is_complete: boolean }> {
   try {
-    const prevRes = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store" });
+    const prevRes = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store", headers: getAuthHeaders() });
     if (prevRes.ok) {
       const prevData = await prevRes.json();
       const statusStr = (prevData.status || "").toUpperCase();
-      const hasSummary = Boolean(prevData.summary || (prevData.parsed_fields && Object.keys(prevData.parsed_fields).length > 0));
+      const hasSummary = Boolean(
+        (prevData.parsed_fields && Object.keys(prevData.parsed_fields).length > 0) ||
+        (prevData.summary && prevData.summary.patient_name && prevData.summary.patient_name !== "N/A")
+      );
       if (statusStr === "COMPLETED" || statusStr === "VALIDATED" || hasSummary) {
         return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
       }
     }
 
-    const res = await fetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, { cache: "no-store", headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
       let pct = typeof data.percentage === "number" ? data.percentage : 0;
@@ -124,7 +178,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
  */
 export async function fetchClaimPreview(claimId: string): Promise<RealClaimPreview | null> {
   try {
-    const res = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, { cache: "no-store", headers: getAuthHeaders() });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -169,6 +223,36 @@ export async function fetchRecentClaims(): Promise<RecentClaimSummary[]> {
     }));
   } catch {
     return [];
+  }
+}
+
+/**
+ * Delete a claim permanently from the Docker backend
+ */
+export async function deleteClaimApi(claimId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${INGRESS_API}/claims/${claimId}`, {
+      method: "DELETE",
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Failed to delete claim from backend:", err);
+    return false;
+  }
+}
+
+/**
+ * Register/authenticate user in backend PostgreSQL database audit log
+ */
+export async function syncUserToBackend(name: string, email: string): Promise<void> {
+  try {
+    await fetch(`${INGRESS_API}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email }),
+    });
+  } catch (err) {
+    console.warn("Backend user sync warning:", err);
   }
 }
 

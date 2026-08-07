@@ -31,25 +31,20 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const [loadingPdf, setLoadingPdf] = useState<'tpa' | 'irdai' | null>(null);
 
   // Editable Form State
-  const [patientName, setPatientName] = useState(s.patientName || 'Damien Hoeger');
-  const [hospitalName, setHospitalName] = useState(s.hospitalName || 'Beth Israel Lahey Health');
-  const [admissionDate, setAdmissionDate] = useState(s.admissionDate || '20-10-2018');
-  const [dischargeDate, setDischargeDate] = useState(s.dischargeDate || '20-10-2018');
-  const [diagnosis, setDiagnosis] = useState(s.diagnosis || 'Laceration / Injury of Forearm');
-  const [billedAmount, setBilledAmount] = useState<number>(s.total || 25000);
+  const [patientName, setPatientName] = useState(s.patientName || 'N/A');
+  const [hospitalName, setHospitalName] = useState(s.hospitalName || 'N/A');
+  const [admissionDate, setAdmissionDate] = useState(s.admissionDate || 'N/A');
+  const [dischargeDate, setDischargeDate] = useState(s.dischargeDate || 'N/A');
+  const [diagnosis, setDiagnosis] = useState(s.diagnosis || 'N/A');
+  const [billedAmount, setBilledAmount] = useState<number>(s.total || 0);
   const [detailsSaved, setDetailsSaved] = useState(false);
 
   // Editable Expenses State
   const [expenses, setExpenses] = useState<ExpenseItem[]>(
-    s.lineItems?.length
-      ? s.lineItems.map(item => ({ id: String(item.id), category: item.category, amount: item.amount }))
-      : [
-          { id: '1', category: 'Pharmacy & Supplies', amount: 8500 },
-          { id: '2', category: 'Emergency Room Charges', amount: 12000 },
-          { id: '3', category: 'Laboratory Diagnostics', amount: 4500 }
-        ]
+    s.lineItems.map((li, i) => ({ id: li.id ? String(li.id) : `exp-${i}`, category: li.category, amount: li.amount }))
   );
   const [expensesSaved, setExpensesSaved] = useState(false);
+
 
   const preview = s.realPreview;
   const summary = preview?.summary;
@@ -103,30 +98,29 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   // Medical Codes (Read-Only)
   const icdCodes = preview?.icd_codes?.length
     ? preview.icd_codes
-    : [
-        { code: 'S17.9', description: diagnosis || 'Crushing injury of neck, part unspecified', confidence: 0.85 },
-        { code: 'S51.8', description: 'Laceration of forearm with acute wound care', confidence: 0.85 },
-        { code: 'S26.0', description: 'Injury of heart without hemopericardium', confidence: 0.79 }
-      ];
+    : [];
 
   const cptCodes = preview?.cpt_codes?.length
     ? preview.cpt_codes
-    : [
-        { code: '99284', description: 'Emergency Department Visit — High Complexity', confidence: 0.92 },
-        { code: '12002', description: 'Simple Repair of Wounds of Scalp/Neck/Extremities', confidence: 0.88 }
-      ];
+    : [];
 
   // IRDAI Validation Rules (Moved to last section)
-  const validations = preview?.validations || [
-    { rule_name: 'IRDAI Clause 4.2 Standard Billing', severity: 'LOW', message: 'Hospital bill format satisfies IRDAI 2023 guidelines', passed: true },
-    { rule_name: 'Sum Insured Limit Check', severity: 'INFO', message: 'Claim amount within policy active limit (₹5,00,000 INR)', passed: true },
-    { rule_name: 'Pre-existing Disease Waiting Period', severity: 'LOW', message: 'No PED exclusion applicable for acute injury admission', passed: true }
-  ];
+  const validations = preview?.validations || [];
 
   const rawRiskScore = preview?.predictions?.[0]?.rejection_score ?? summary?.risk_score;
   const riskScoreNum = rawRiskScore !== undefined && rawRiskScore !== null
     ? Math.round(rawRiskScore <= 1 ? rawRiskScore * 100 : rawRiskScore)
     : 12;
+
+  // Cross-Document Intelligence: compute from parsed_fields
+  const parsedFields = preview?.parsed_fields;
+  const parsedFieldEntries = (parsedFields && typeof parsedFields === 'object')
+    ? Object.entries(parsedFields as Record<string, unknown>)
+    : [];
+  const totalParsedFields = parsedFieldEntries.length;
+  const filledParsedFields = parsedFieldEntries.filter(([, v]) => v !== null && v !== undefined && v !== '').length;
+  const verificationReadiness = totalParsedFields > 0 ? Math.round((filledParsedFields / totalParsedFields) * 100) : 0;
+  const documents = (preview as any)?.documents as Array<{ type?: string; name?: string; fields_extracted?: number }> | undefined;
   const totalItemizedExpenses = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const expenseMismatch = Math.abs(billedAmount - totalItemizedExpenses);
 
@@ -195,7 +189,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   <CheckCircle2 className="h-2.5 sm:h-3 w-2.5 sm:w-3" /> VERIFIED
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Claim ID: {s.claimId || 'CLM-2026-8842'}</p>
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Claim ID: {s.claimId || 'N/A'}</p>
             </div>
           </div>
 
@@ -265,7 +259,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   <span className="text-[10px] font-medium text-slate-400">Extracted Fields</span>
                   <FileText className="h-3.5 w-3.5 text-purple-400" />
                 </div>
-                <p className="text-base sm:text-lg font-extrabold text-white mt-1">{Object.keys(preview?.parsed_fields || {}).length || 0}</p>
+                <p className="text-base sm:text-lg font-extrabold text-white mt-1">{totalParsedFields || '—'}</p>
                 <span className="text-[9px] font-semibold text-slate-400">OCR AI Verified</span>
               </div>
             </div>
@@ -445,7 +439,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <h3 className="text-xs sm:text-sm font-bold text-white">Cross-Document Reimbursement Intelligence</h3>
               </div>
               <span className="inline-flex items-center gap-1 rounded-full bg-teal-500/20 border border-teal-500/40 px-2.5 py-0.5 text-xs font-bold text-teal-300">
-                85% Reimbursement Ready
+                {verificationReadiness}% Reimbursement Ready
               </span>
             </div>
 
@@ -453,32 +447,36 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             <div className="space-y-1">
               <div className="flex justify-between text-[10px] font-semibold text-slate-400">
                 <span>Verification Readiness Progress</span>
-                <span className="text-teal-400 font-bold">85%</span>
+                <span className="text-teal-400 font-bold">{verificationReadiness}%</span>
               </div>
               <div className="h-2 w-full rounded-full bg-slate-900 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 rounded-full" style={{ width: '85%' }} />
+                <div className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 rounded-full" style={{ width: `${verificationReadiness}%` }} />
               </div>
             </div>
 
             {/* Analyzed Documents Cards */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">📁 Documents Analyzed (3)</p>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">📁 Documents Analyzed ({documents?.length ?? (s.claimId ? 1 : 0)})</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
-                  <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">DISCHARGE SUMMARY</span>
-                  <p className="font-semibold text-white mt-1.5 truncate">Discharge_Summary.pdf</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">8 fields extracted</p>
-                </div>
-                <div className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
-                  <span className="rounded bg-sky-500/20 px-1.5 py-0.5 text-[9px] font-bold text-sky-300">HOSPITAL BILL</span>
-                  <p className="font-semibold text-white mt-1.5 truncate">Final_Hospital_Bill.pdf</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">5 fields extracted</p>
-                </div>
-                <div className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
-                  <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-300">DIAGNOSTICS</span>
-                  <p className="font-semibold text-white mt-1.5 truncate">Lab_Report_Blood.pdf</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">3 fields extracted</p>
-                </div>
+                {documents && documents.length > 0 ? (
+                  documents.map((doc, idx) => (
+                    <div key={idx} className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
+                      <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">{(doc.type || 'DOCUMENT').toUpperCase()}</span>
+                      <p className="font-semibold text-white mt-1.5 truncate">{doc.name || `Document ${idx + 1}`}</p>
+                      {doc.fields_extracted !== undefined && (
+                        <p className="text-[10px] text-slate-400 mt-0.5">{doc.fields_extracted} fields extracted</p>
+                      )}
+                    </div>
+                  ))
+                ) : s.claimId ? (
+                  <div className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
+                    <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">CLAIM</span>
+                    <p className="font-semibold text-white mt-1.5 truncate">{s.claimId}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{totalParsedFields} fields extracted</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic text-slate-500">No documents analyzed</p>
+                )}
               </div>
             </div>
 
@@ -486,18 +484,38 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             <div className="space-y-2">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">🔍 Cross-Document Field Verification</p>
               <div className="space-y-1.5 text-xs">
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/50 border border-white/5">
-                  <span className="font-medium text-slate-300">Patient Name Match</span>
-                  <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px]"><CheckCircle2 className="h-3.5 w-3.5" /> Verified Match</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/50 border border-white/5">
-                  <span className="font-medium text-slate-300">Hospital Admission Date</span>
-                  <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px]"><CheckCircle2 className="h-3.5 w-3.5" /> Verified Match</span>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/50 border border-white/5">
-                  <span className="font-medium text-slate-300">Diagnosis Code Alignment</span>
-                  <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px]"><CheckCircle2 className="h-3.5 w-3.5" /> Verified Match</span>
-                </div>
+                {parsedFieldEntries.length > 0 ? (
+                  parsedFieldEntries.map(([key, value]) => {
+                    let displayVal = '';
+                    if (value !== null && value !== undefined && value !== '') {
+                      if (typeof value === 'object') {
+                        const obj = value as Record<string, unknown>;
+                        displayVal = obj.description && obj.amount ? `${obj.description} — ₹${obj.amount}` : (obj.description ? String(obj.description) : JSON.stringify(value));
+                      } else {
+                        const str = String(value);
+                        if (str.startsWith('{') && str.endsWith('}')) {
+                          try {
+                            const obj = JSON.parse(str);
+                            displayVal = obj.description && obj.amount ? `${obj.description} — ₹${obj.amount}` : (obj.description ? String(obj.description) : str);
+                          } catch { displayVal = str; }
+                        } else { displayVal = str; }
+                      }
+                    }
+
+                    return (
+                      <div key={key} className="flex items-center justify-between p-2 rounded-xl bg-slate-900/50 border border-white/5 gap-3">
+                        <span className="font-medium text-slate-300 flex-none">{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                        {displayVal ? (
+                          <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px] text-right truncate"><CheckCircle2 className="h-3.5 w-3.5 flex-none" /> {displayVal}</span>
+                        ) : (
+                          <span className="font-semibold text-slate-500 text-[11px]">Not extracted</span>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-muted-foreground italic text-slate-500">No parsed fields available</p>
+                )}
               </div>
             </div>
 
@@ -532,7 +550,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <h3 className="text-xs sm:text-sm font-bold text-white">ICD-10 &amp; CPT Medical Codes</h3>
             </div>
             <div className="space-y-2.5">
-              {icdCodes.map(item => (
+              {icdCodes.length > 0 ? icdCodes.map(item => (
                 <div key={item.code} className="bg-slate-900/70 p-3 rounded-xl border border-white/5 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/25 px-2 py-0.5 rounded text-[11px]">
@@ -546,8 +564,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     {item.description}
                   </p>
                 </div>
-              ))}
-              {cptCodes.map(item => (
+              )) : (
+                <p className="text-xs text-muted-foreground italic text-slate-500">No ICD codes extracted</p>
+              )}
+              {cptCodes.length > 0 ? cptCodes.map(item => (
                 <div key={item.code} className="bg-slate-900/70 p-3 rounded-xl border border-white/5 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono font-bold text-sky-300 bg-sky-500/10 border border-sky-500/25 px-2 py-0.5 rounded text-[11px]">
@@ -561,7 +581,9 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     {item.description}
                   </p>
                 </div>
-              ))}
+              )) : (
+                <p className="text-xs text-muted-foreground italic text-slate-500">No CPT codes extracted</p>
+              )}
             </div>
           </div>
 
@@ -578,7 +600,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
 
             <div className="space-y-2">
-              {validations.map((val, i) => (
+              {validations.length > 0 ? validations.map((val, i) => (
                 <div key={i} className="flex items-start gap-2.5 text-xs bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
                   <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-none mt-0.5" />
                   <div>
@@ -586,7 +608,9 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     <p className="text-slate-400 text-[11px] mt-0.5">{val.message}</p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="text-xs text-muted-foreground italic text-slate-500">No data extracted</p>
+              )}
             </div>
           </div>
 

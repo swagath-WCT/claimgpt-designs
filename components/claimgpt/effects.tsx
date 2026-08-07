@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type HTMLAttributes,
 } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -336,12 +337,13 @@ export function StaggerItem({
   index = 0,
   className,
   id,
+  ...props
 }: {
   children: ReactNode;
   index?: number;
   className?: string;
   id?: string;
-}) {
+} & HTMLAttributes<HTMLDivElement>) {
   const delay = useContext(StaggerContext);
   return (
     <div
@@ -351,6 +353,7 @@ export function StaggerItem({
         animationDelay: `${index * delay}ms`,
         animationFillMode: 'forwards',
       }}
+      {...props}
     >
       {children}
     </div>
