@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+
 import {
   AlertTriangle,
   Bell,
@@ -19,6 +21,8 @@ import {
   Trash2,
   Upload,
   X,
+  Menu,
+  Loader2,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { Button } from '@/components/ui/button';
@@ -29,6 +33,8 @@ import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
 import { DocumentPreviewModal } from '@/components/claimgpt/document-preview-modal';
 import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
+import { HamburgerMenuDrawer } from '@/components/claimgpt/hamburger-menu-drawer';
+import { NotificationBell } from '@/components/claimgpt/notification-bell';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -53,6 +59,15 @@ export function DashboardClinical() {
       <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={s.openMenuDrawer}
+              className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+              aria-label="Open Navigation Menu"
+              title="Navigation Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
               <ShieldCheck className="h-4 sm:h-5 w-4 sm:w-5" />
             </div>
@@ -77,10 +92,7 @@ export function DashboardClinical() {
               Processing Queue: <CountUp end={3} />
             </span>
             <LanguageSwitcher variant="light" />
-            <button type="button" className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-slate-100 hover:text-foreground" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
-            </button>
+            <NotificationBell variant="clinical" />
             <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-slate-200 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
               <AvatarFallback className="bg-teal-600 text-xs font-semibold text-white">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -101,7 +113,7 @@ export function DashboardClinical() {
 
           {/* Responsive Desktop & Mobile Grid */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 lg:items-start">
-            
+
             {/* Desktop Left Sidebar: Processed Claims History */}
             <StaggerItem index={1} className="hidden lg:block lg:col-span-1">
               <div className="rounded-xl border border-border bg-white p-4 shadow-elevation-sm">
@@ -145,8 +157,8 @@ export function DashboardClinical() {
                           onClick={() => s.selectClaim(claim.id)}
                           className={cn(
                             "w-full rounded-xl border p-3 text-left transition-all tap-highlight-none",
-                            isSelected 
-                              ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent" 
+                            isSelected
+                              ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent"
                               : "border-border bg-slate-50 hover:bg-slate-100"
                           )}
                         >
@@ -181,7 +193,7 @@ export function DashboardClinical() {
 
             {/* Right Main Content Area */}
             <div className="space-y-6 lg:col-span-3">
-              
+
               {/* Sleek 1-Line Collapsible Upload Dropdown Panel */}
               <StaggerItem index={2}>
                 <SpotlightCard className="bg-white p-3 shadow-elevation-sm">
@@ -251,9 +263,9 @@ export function DashboardClinical() {
                             <Button onClick={s.openReportModal} className="teal-gradient w-full h-11 text-sm font-semibold text-white shadow-lg">
                               <FileText className="mr-2 h-4 w-4" /> View AI Post-Processing Audit Report
                             </Button>
-                            <button 
-                              type="button" 
-                              onClick={() => s.resetState()} 
+                            <button
+                              type="button"
+                              onClick={() => s.resetState()}
                               className="inline-flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground underline pt-1"
                             >
                               <Plus className="h-3.5 w-3.5" /> Upload Another Claim Document
@@ -261,8 +273,8 @@ export function DashboardClinical() {
                           </div>
                         </div>
                       ) : (
-                        <label 
-                          htmlFor="c-upload" 
+                        <label
+                          htmlFor="c-upload"
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             e.preventDefault();
@@ -275,12 +287,12 @@ export function DashboardClinical() {
                           </div>
                           <p className="text-sm font-semibold text-foreground">Drag &amp; drop claim documents</p>
                           <p className="text-xs text-muted-foreground">PDF, JPG, PNG — up to 25 MB</p>
-                          <input 
-                            id="c-upload" 
-                            type="file" 
-                            multiple 
-                            accept=".pdf,.jpg,.jpeg,.png" 
-                            className="hidden" 
+                          <input
+                            id="c-upload"
+                            type="file"
+                            multiple
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            className="hidden"
                             onChange={s.handleSelectFile}
                           />
                         </label>
@@ -370,8 +382,8 @@ export function DashboardClinical() {
                             onClick={() => s.selectClaim(claim.id)}
                             className={cn(
                               "flex-none snap-start rounded-lg border px-3.5 py-2 text-left transition-all tap-highlight-none min-w-[150px]",
-                              isSelected 
-                                ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent" 
+                              isSelected
+                                ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent"
                                 : "border-border bg-slate-50 hover:bg-slate-100"
                             )}
                           >
@@ -439,6 +451,7 @@ export function DashboardClinical() {
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                       <span>0%</span>
+                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
                       <span>100%</span>
                     </div>
                   </div>
@@ -525,17 +538,17 @@ export function DashboardClinical() {
                     </Button>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2">
-                    <DocumentViewer 
+                    <DocumentViewer
                       claimId={s.claimId}
-                      zoom={s.zoom} 
-                      setZoom={s.setZoom} 
-                      hoveredField={s.hoveredField} 
-                      filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || s.files[0]?.name} 
-                      documents={s.realPreview?.documents} 
+                      zoom={s.zoom}
+                      setZoom={s.setZoom}
+                      hoveredField={s.hoveredField}
+                      filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || s.files[0]?.name}
+                      documents={s.realPreview?.documents}
                       activeDocumentId={s.activeDocumentId}
                       onSelectDocument={s.setActiveDocumentId}
                       onOpenDocModal={s.openDocModal}
-                      className="border-b border-border lg:border-b-0 lg:border-r" 
+                      className="border-b border-border lg:border-b-0 lg:border-r"
                     />
                     <div className="flex flex-col">
                       <div className="border-b border-border bg-slate-50/60 px-5 py-3">
@@ -588,17 +601,20 @@ export function DashboardClinical() {
       </main>
       {/* Post-Processing Audit Report Modal */}
       <ClaimReportModal s={s} />
-      <DocumentPreviewModal 
-        isOpen={s.showDocModal} 
-        onClose={s.closeDocModal} 
-        claimId={s.claimId} 
-        patientName={s.patientName} 
-        documents={s.realPreview?.documents} 
+      <DocumentPreviewModal
+        isOpen={s.showDocModal}
+        onClose={s.closeDocModal}
+        claimId={s.claimId}
+        patientName={s.patientName}
+        documents={s.realPreview?.documents}
         initialDocId={s.activeDocumentId}
       />
 
       {/* User Profile & Account Submissions Modal */}
-      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} variant="clinical" />
+
+      {/* Slide-out Sidebar Navigation Drawer */}
+      <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="clinical" />
     </div>
   );
 }
@@ -618,6 +634,12 @@ function MetaField({
   onEdit: () => void;
   className?: string;
 }) {
+  const [val, setVal] = useState(defaultValue);
+
+  useEffect(() => {
+    setVal(defaultValue);
+  }, [defaultValue]);
+
   return (
     <div className={cn('space-y-1.5', className)}>
       <div className="flex items-center gap-2">
@@ -628,7 +650,15 @@ function MetaField({
           </span>
         )}
       </div>
-      <Input id={id} defaultValue={defaultValue} onChange={onEdit} className="h-10 border-slate-200" />
+      <Input
+        id={id}
+        value={val}
+        onChange={(e) => {
+          setVal(e.target.value);
+          onEdit();
+        }}
+        className="h-10 border-slate-200"
+      />
     </div>
   );
 }

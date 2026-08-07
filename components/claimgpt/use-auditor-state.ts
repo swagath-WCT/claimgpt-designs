@@ -58,6 +58,7 @@ export function useAuditorState() {
   const [userName, setUserName] = useState<string>('Nivas');
   const [userEmail, setUserEmail] = useState<string>('nivas@example.com');
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [showMenuDrawer, setShowMenuDrawer] = useState<boolean>(false);
 
   useEffect(() => {
     try {
@@ -101,18 +102,18 @@ export function useAuditorState() {
       setMissingGroups([]);
       return;
     }
-    
+
     if ((preview.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") {
       setIsDocumentsRequested(true);
       const docs = preview.documents || [];
       const kyc_types = ["aadhaar_card", "pan_card", "identity_proof"];
       const clinical_types = ["discharge_summary", "lab_report"];
       const financial_types = ["hospital_bill", "pharmacy_bill"];
-      
+
       const hasKyc = docs.some(d => kyc_types.includes((d.doc_type || "").toLowerCase()));
       const hasClinical = docs.some(d => clinical_types.includes((d.doc_type || "").toLowerCase()));
       const hasFinancial = docs.some(d => financial_types.includes((d.doc_type || "").toLowerCase()));
-      
+
       const missing = [];
       if (!hasClinical && !hasFinancial) missing.push("Hospital Documents (Discharge Summary / Hospital Bill)");
       if (!hasKyc) missing.push("Identity / KYC Proof (Aadhaar / PAN / Passport)");
@@ -262,8 +263,8 @@ export function useAuditorState() {
     setPendingFiles((prev) => [...prev, ...incoming]);
     setFiles((prev) => [
       ...prev,
-      ...incoming.map((f) => ({ 
-        name: f.name, 
+      ...incoming.map((f) => ({
+        name: f.name,
         size: f.size > 1024 * 1024 ? `${(f.size / (1024 * 1024)).toFixed(1)} MB` : `${(f.size / 1024).toFixed(0)} KB`,
         type: f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/png')
       })),
@@ -391,44 +392,49 @@ export function useAuditorState() {
       return false;
     };
 
-    // Background polling — continues until real data arrives or 60s timeout
+    const finishProgress = () => {
+      if (dataArrived) return;
+      dataArrived = true;
+      clearInterval(pollInterval);
+      clearInterval(timer);
+      setProgress(100);
+      setActiveStage('scoring');
+      setAnalyzing(false);
+      setIsLiveSessionCompleted(true);
+      reloadRecentClaims();
+    };
+
+    // Background polling — continues every 600ms until Celery finishes OCR & LLM extraction
     const pollStartTime = Date.now();
     const pollInterval = setInterval(async () => {
       if (dataArrived) { clearInterval(pollInterval); return; }
-      if (Date.now() - pollStartTime > 60000) { clearInterval(pollInterval); return; }
+      if (Date.now() - pollStartTime > 60000) {
+        finishProgress();
+        return;
+      }
       const got = await tryFetchPreview();
       if (got) {
-        dataArrived = true;
-        clearInterval(pollInterval);
-        setAnalyzing(false);
-        setIsLiveSessionCompleted(true);
-        reloadRecentClaims();
+        finishProgress();
       }
-    }, 1500);
+    }, 600);
 
-    // Animated progress bar (purely visual, completes in ~2s)
-    timer = setInterval(() => {
-      p += 25;
-      const currentPct = Math.min(p, 100);
-      setProgress(currentPct);
-
-      if (currentPct >= 85) setActiveStage('scoring');
-      else if (currentPct >= 60) setActiveStage('coding');
-      else if (currentPct >= 35) setActiveStage('parsing');
-      else if (currentPct >= 15) setActiveStage('ocr');
-
-      if (currentPct >= 100) {
+    // Animated progress bar — advances up to 92% and holds until backend finishes
+    const timer = setInterval(() => {
+      if (dataArrived) {
         clearInterval(timer);
-        setProgress(100);
-        setActiveStage('scoring');
-        // NOTE: Do NOT set analyzing=false here.
-        // The poll interval above will set it once real data arrives.
-        // If data already arrived during animation, clean up.
-        if (dataArrived) {
-          clearInterval(pollInterval);
-        }
+        return;
       }
-    }, 500);
+      if (p < 92) {
+        p += 15;
+        const currentPct = Math.min(p, 92);
+        setProgress(currentPct);
+
+        if (currentPct >= 85) setActiveStage('scoring');
+        else if (currentPct >= 60) setActiveStage('coding');
+        else if (currentPct >= 35) setActiveStage('parsing');
+        else if (currentPct >= 15) setActiveStage('ocr');
+      }
+    }, 400);
   };
 
   /* Manually open report modal and fetch selected or latest claim preview directly from backend */
@@ -452,12 +458,12 @@ export function useAuditorState() {
   /* Computed items & total */
   const lineItems: LineItem[] = realPreview?.expenses?.length
     ? realPreview.expenses.map((exp, idx) => ({
-        id: `exp-${idx}`,
-        category: exp.category || "Expense",
-        description: exp.description || exp.category,
-        amount: exp.amount || 0,
-        box: { x: 8, y: 30 + idx * 10, w: 84, h: 7 },
-      }))
+      id: `exp-${idx}`,
+      category: exp.category || "Expense",
+      description: exp.description || exp.category,
+      amount: exp.amount || 0,
+      box: { x: 8, y: 30 + idx * 10, w: 84, h: 7 },
+    }))
     : LINE_ITEMS;
 
   const total = lineItems.reduce((sum, i) => sum + i.amount, 0);
@@ -535,6 +541,10 @@ export function useAuditorState() {
     setShowProfileModal,
     openProfileModal: () => setShowProfileModal(true),
     closeProfileModal: () => setShowProfileModal(false),
+    showMenuDrawer,
+    setShowMenuDrawer,
+    openMenuDrawer: () => setShowMenuDrawer(true),
+    closeMenuDrawer: () => setShowMenuDrawer(false),
   };
 }
 

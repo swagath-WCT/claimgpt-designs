@@ -18,7 +18,9 @@ import {
   Trash2,
   Upload,
   Crown,
-  X
+  X,
+  Menu,
+  Loader2,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { Button } from '@/components/ui/button';
@@ -28,6 +30,8 @@ import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
 import { DocumentPreviewModal } from '@/components/claimgpt/document-preview-modal';
 import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
+import { HamburgerMenuDrawer } from '@/components/claimgpt/hamburger-menu-drawer';
+import { NotificationBell } from '@/components/claimgpt/notification-bell';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -56,6 +60,15 @@ export function DashboardLedger() {
       <header className="relative z-40 sticky top-0 border-b border-amber-500/20 bg-[#060b18]/85 backdrop-blur-xl">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={s.openMenuDrawer}
+              className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl border border-amber-500/20 text-amber-300 hover:bg-amber-500/20 hover:text-white transition-colors"
+              aria-label="Open Navigation Menu"
+              title="Navigation Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 font-bold shadow-lg shadow-amber-500/20 border border-amber-400/40">
               <Crown className="h-4 sm:h-5 w-4 sm:w-5 fill-slate-950" />
             </div>
@@ -80,10 +93,7 @@ export function DashboardLedger() {
               Processing Queue: <CountUp end={3} />
             </span>
             <LanguageSwitcher variant="dark" />
-            <button type="button" className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 text-amber-400 hover:bg-amber-500/10 hover:text-white" aria-label="Notifications">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400" />
-            </button>
+            <NotificationBell variant="executive" />
             <Avatar onClick={s.openProfileModal} title={`${s.userName} (${s.userEmail})`} className="h-9 w-9 border border-amber-500/40 cursor-pointer hover:scale-105 transition-transform" aria-label="User Profile">
               <AvatarFallback className="bg-gradient-to-tr from-amber-500 to-amber-600 text-xs font-extrabold text-slate-950">{s.userName.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
@@ -106,7 +116,7 @@ export function DashboardLedger() {
 
           {/* Responsive Desktop & Mobile Grid */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-4 lg:items-start">
-            
+
             {/* Desktop Left Sidebar: Processed Claims History */}
             <StaggerItem index={1} className="hidden lg:block lg:col-span-1">
               <div className="rounded-2xl border border-amber-500/25 bg-[#0a1226]/90 p-4 shadow-xl shadow-amber-500/5 backdrop-blur-xl">
@@ -150,8 +160,8 @@ export function DashboardLedger() {
                           onClick={() => s.selectClaim(claim.id)}
                           className={cn(
                             "w-full rounded-xl border p-3 text-left transition-all tap-highlight-none",
-                            isSelected 
-                              ? "border-amber-400 bg-amber-500/20 shadow-md font-bold text-white ring-1 ring-amber-400" 
+                            isSelected
+                              ? "border-amber-400 bg-amber-500/20 shadow-md font-bold text-white ring-1 ring-amber-400"
                               : "border-white/5 bg-[#060b18]/80 hover:bg-[#0c1630] text-slate-300"
                           )}
                         >
@@ -186,7 +196,7 @@ export function DashboardLedger() {
 
             {/* Right Main Content Area */}
             <div className="space-y-6 lg:col-span-3">
-              
+
               {/* Sleek 1-Line Collapsible Upload Dropdown Panel */}
               <StaggerItem index={2}>
                 <div className="rounded-2xl border border-amber-500/25 bg-[#0a1226]/90 p-3.5 shadow-xl shadow-amber-500/5 backdrop-blur-xl">
@@ -255,9 +265,9 @@ export function DashboardLedger() {
                             <Button onClick={s.openReportModal} className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 w-full h-11 text-sm font-bold text-slate-950 shadow-lg shadow-amber-500/20 rounded-xl border border-amber-400/40">
                               <FileText className="mr-2 h-4 w-4" /> View AI Post-Processing Audit Report
                             </Button>
-                            <button 
-                              type="button" 
-                              onClick={() => s.resetState()} 
+                            <button
+                              type="button"
+                              onClick={() => s.resetState()}
                               className="inline-flex items-center justify-center gap-1.5 text-xs text-amber-300 hover:text-white underline pt-1"
                             >
                               <Plus className="h-3.5 w-3.5" /> Upload Another Claim Document
@@ -265,8 +275,8 @@ export function DashboardLedger() {
                           </div>
                         </div>
                       ) : (
-                        <label 
-                          htmlFor="ledger-upload" 
+                        <label
+                          htmlFor="ledger-upload"
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             e.preventDefault();
@@ -359,18 +369,19 @@ export function DashboardLedger() {
                   {/* Progress Bar */}
                   <div className="space-y-1 mb-4">
                     <div className="h-2 w-full rounded-full bg-[#060b18] overflow-hidden border border-amber-500/20">
-                      <div 
+                      <div
                         className={cn(
                           "h-full rounded-full transition-all duration-500",
                           s.isDocumentsRequested
                             ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]"
                             : "bg-gradient-to-r from-amber-500 to-amber-400"
                         )}
-                        style={{ width: `${s.progress}%` }} 
+                        style={{ width: `${s.progress}%` }}
                       />
                     </div>
                     <div className="flex justify-between text-[10px] font-bold text-amber-300/70 px-0.5">
                       <span>0%</span>
+                      <span className="font-extrabold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
                       <span className="text-amber-400">100%</span>
                     </div>
                   </div>
@@ -449,11 +460,11 @@ export function DashboardLedger() {
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {/* Left: Document Viewer */}
                     <div className="rounded-xl border border-amber-500/20 bg-[#060b18] p-2 overflow-hidden min-h-[380px] flex flex-col">
-                      <DocumentViewer 
+                      <DocumentViewer
                         claimId={s.claimId}
-                        zoom={s.zoom} 
-                        setZoom={s.setZoom} 
-                        hoveredField={s.hoveredField} 
+                        zoom={s.zoom}
+                        setZoom={s.setZoom}
+                        hoveredField={s.hoveredField}
                         filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || s.files[0]?.name}
                         documents={s.realPreview?.documents}
                         activeDocumentId={s.activeDocumentId}
@@ -466,7 +477,7 @@ export function DashboardLedger() {
                     {/* Right: Extracted Patient & Claim Metadata */}
                     <div className="space-y-3 rounded-xl border border-amber-500/20 bg-[#060b18]/90 p-4">
                       <h3 className="text-xs font-bold text-white uppercase tracking-wider border-b border-amber-500/20 pb-2">Patient Metadata</h3>
-                      
+
                       <div key={`${s.claimId || 'default-ledger'}-${s.previewVersion}`} className="grid grid-cols-2 gap-3 text-xs">
                         <div>
                           <p className="text-[10px] font-medium text-amber-300/60">Patient Name</p>
@@ -534,17 +545,20 @@ export function DashboardLedger() {
 
       {/* Post-Processing Audit Report Modal */}
       <ClaimReportModal s={s} />
-      <DocumentPreviewModal 
-        isOpen={s.showDocModal} 
-        onClose={s.closeDocModal} 
-        claimId={s.claimId} 
-        patientName={s.patientName} 
-        documents={s.realPreview?.documents} 
+      <DocumentPreviewModal
+        isOpen={s.showDocModal}
+        onClose={s.closeDocModal}
+        claimId={s.claimId}
+        patientName={s.patientName}
+        documents={s.realPreview?.documents}
         initialDocId={s.activeDocumentId}
       />
 
       {/* User Profile & Account Submissions Modal */}
-      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} />
+      <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} variant="executive" />
+
+      {/* Slide-out Sidebar Navigation Drawer */}
+      <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="executive" />
     </div>
   );
 }
