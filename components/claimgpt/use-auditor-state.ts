@@ -293,14 +293,14 @@ export function useAuditorState() {
   };
 
   /* Direct upload & instant analysis */
-  const handleUploadFile = async (fileInput: File | File[]) => {
+  const handleUploadFile = async (fileInput: File | File[], appendToActive = false) => {
     handleSelectFile(fileInput);
     const filesToUpload = Array.isArray(fileInput) ? fileInput : [fileInput];
-    await startClaimAnalysis(filesToUpload);
+    await startClaimAnalysis(filesToUpload, appendToActive);
   };
 
   /* Begin Claim Analysis action button */
-  const startClaimAnalysis = async (overrideFiles?: File | File[]) => {
+  const startClaimAnalysis = async (overrideFiles?: File | File[], appendToActive = false) => {
     let targetFiles: File[] = [];
     if (overrideFiles) {
       targetFiles = Array.isArray(overrideFiles) ? overrideFiles : [overrideFiles];
@@ -322,7 +322,7 @@ export function useAuditorState() {
 
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(targetFiles, userName);
+      const res = await uploadClaimDocument(targetFiles, userName, (appendToActive && claimId) ? claimId : undefined);
       if (res.claim_id) {
         activeClaimId = res.claim_id;
         setClaimId(res.claim_id);
@@ -419,7 +419,7 @@ export function useAuditorState() {
     }, 600);
 
     // Animated progress bar — advances up to 92% and holds until backend finishes
-    const timer = setInterval(() => {
+    timer = setInterval(() => {
       if (dataArrived) {
         clearInterval(timer);
         return;

@@ -511,7 +511,7 @@ export function DashboardClinical() {
                                 hidden
                                 onChange={(e) => {
                                   if (e.target.files?.length) {
-                                    s.handleUploadFile(Array.from(e.target.files));
+                                    s.handleUploadFile(Array.from(e.target.files), true);
                                   }
                                 }}
                               />
