@@ -18,6 +18,7 @@ import {
   type RecentClaimSummary,
   SUBMISSION_API,
 } from '@/lib/api-client';
+import { getStoredAuthSession } from '@/lib/auth';
 
 /* Utility function for robust smooth scrolling across all devices */
 export function scrollToPipeline() {
@@ -55,21 +56,41 @@ export function useAuditorState() {
   const closeDocModal = () => setShowDocModal(false);
 
   /* User Profile & Account Modal State */
-  const [userName, setUserName] = useState<string>('Nivas');
-  const [userEmail, setUserEmail] = useState<string>('nivas@example.com');
+  const [userName, setUserName] = useState<string>('User');
+  const [userEmail, setUserEmail] = useState<string>('user@example.com');
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState<boolean>(false);
 
-  useEffect(() => {
+  const syncUserSession = () => {
     try {
-      const savedName = localStorage.getItem('claimgpt_user_name');
-      const savedEmail = localStorage.getItem('claimgpt_user_email');
-      if (savedName) setUserName(savedName);
-      if (savedEmail) setUserEmail(savedEmail);
+      const session = getStoredAuthSession();
+      if (session?.user) {
+        if (session.user.name) setUserName(session.user.name);
+        if (session.user.email) setUserEmail(session.user.email);
+      } else {
+        const savedName = localStorage.getItem('claimgpt_user_name');
+        const savedEmail = localStorage.getItem('claimgpt_user_email');
+        if (savedName) setUserName(savedName);
+        if (savedEmail) setUserEmail(savedEmail);
+      }
     } catch {
       /* ignore localStorage error */
     }
+  };
+
+  useEffect(() => {
+    syncUserSession();
   }, []);
+
+  const openProfileModal = () => {
+    syncUserSession();
+    setShowProfileModal(true);
+  };
+
+  const openMenuDrawer = () => {
+    syncUserSession();
+    setShowMenuDrawer(true);
+  };
 
   /* File(s) pending analysis */
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);

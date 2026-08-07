@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR } from '@/lib/claimgpt-data';
+import { getStoredAuthSession } from '@/lib/auth';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -49,14 +50,19 @@ export function UserProfileModal({
 
   useEffect(() => {
     try {
+      const session = getStoredAuthSession();
       const dob = localStorage.getItem('claimgpt_user_dob');
       const insurer = localStorage.getItem('claimgpt_user_insurer');
       const policy = localStorage.getItem('claimgpt_user_policy');
       const sum = localStorage.getItem('claimgpt_user_sum');
-      if (dob) setUserMeta(prev => ({ ...prev, dob }));
-      if (insurer) setUserMeta(prev => ({ ...prev, insurer }));
-      if (policy) setUserMeta(prev => ({ ...prev, policyNo: policy }));
-      if (sum) setUserMeta(prev => ({ ...prev, sumInsured: `₹${Number(sum).toLocaleString('en-IN')}` }));
+      const gender = localStorage.getItem('claimgpt_user_gender');
+      setUserMeta({
+        dob: dob || '19 Aug 1990',
+        gender: gender || 'Male',
+        insurer: insurer || (session?.role === 'tpa' ? 'TPA Adjuster Org' : 'Star Health'),
+        policyNo: policy || (session?.role === 'tpa' ? 'TPA-90021' : 'P-0007401'),
+        sumInsured: sum ? `₹${Number(sum).toLocaleString('en-IN')}` : '₹5,000,000',
+      });
     } catch {
       /* ignore localStorage error */
     }
