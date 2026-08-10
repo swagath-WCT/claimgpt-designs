@@ -47,6 +47,12 @@ interface AuthSession {
   idToken: string;
   expiresAt: number;
   role: AuthRole;
+  /** Actual backend role: submitter (patient), admin, or reviewer (org staff). */
+  accountRole?: 'submitter' | 'admin' | 'reviewer';
+  /** Organization display name, present for admin/reviewer accounts. */
+  organization?: string;
+  /** Kebab-case organization slug used to build /{organization}/admin|review routes. */
+  organizationSlug?: string;
   user: {
     email: string;
     name: string;
@@ -242,11 +248,16 @@ export async function authenticateWithPassword({
     const passwordHash = await hashPasswordForTransport(password);
     let backendResponse: Response | null = null;
 
+    const requestBody: Record<string, unknown> =
+      role === 'patient'
+        ? { username, password_hash: passwordHash, role: 'submitter' }
+        : { username, password_hash: passwordHash };
+
     try {
       backendResponse = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password_hash: passwordHash, role }),
+        body: JSON.stringify(requestBody),
       });
     } catch (error) {
       // Fall back to Keycloak if the local ingress route is unavailable.
@@ -256,12 +267,23 @@ export async function authenticateWithPassword({
     if (backendResponse) {
       const backendData = await backendResponse.json().catch(() => ({}));
       if (backendResponse.ok) {
+        const accountRole = (
+          backendData.role === 'admin' || backendData.role === 'reviewer' || backendData.role === 'submitter'
+            ? backendData.role
+            : role === 'patient' ? 'submitter' : undefined
+        ) as AuthSession['accountRole'];
+        const organization = typeof backendData.organization === 'string' ? backendData.organization : undefined;
+        const organizationSlug = typeof backendData.organization_slug === 'string' ? backendData.organization_slug : undefined;
+
         const localSession: AuthSession = {
           accessToken: `local-token-${Date.now()}`,
           refreshToken: `local-refresh-${Date.now()}`,
           idToken: `local-id-${Date.now()}`,
           expiresAt: Math.floor(Date.now() / 1000) + 86400,
           role,
+          accountRole,
+          organization,
+          organizationSlug,
           user: {
             email: username,
             name: username.split('@')[0] || username,
@@ -275,24 +297,34 @@ export async function authenticateWithPassword({
         return localSession;
       }
 
-      const backendErrorRaw = backendData.detail || backendData.error;
-      const backendErrorMessage = typeof backendErrorRaw === 'string'
-        ? backendErrorRaw
-        : typeof backendErrorRaw?.message === 'string'
-          ? backendErrorRaw.message
-          : 'Invalid username or password.';
-      const backendActualRole = typeof backendData?.detail?.actual_role === 'string'
-        ? backendData.detail.actual_role
-        : typeof backendData?.actual_role === 'string'
-          ? backendData.actual_role
-          : undefined;
+      let formattedMessage: string;
+      let authErrorField: AuthErrorField;
 
-      let formattedMessage = backendErrorMessage;
-      if (backendActualRole && backendResponse.status === 403 && backendErrorMessage.toLowerCase().includes('role')) {
-        formattedMessage = formatRoleMismatchMessage(role, backendActualRole);
+      if (role === 'tpa') {
+        // Organizations don't send a role — the backend resolves it server-side.
+        // Any failure (wrong credentials, wrong account type, disabled account, etc.)
+        // is surfaced generically so we don't leak account/role details.
+        formattedMessage = 'Access denied. Please check your credentials or contact your administrator.';
+        authErrorField = 'general';
+      } else {
+        const backendErrorRaw = backendData.detail || backendData.error;
+        const backendErrorMessage = typeof backendErrorRaw === 'string'
+          ? backendErrorRaw
+          : typeof backendErrorRaw?.message === 'string'
+            ? backendErrorRaw.message
+            : 'Invalid username or password.';
+        const backendActualRole = typeof backendData?.detail?.actual_role === 'string'
+          ? backendData.detail.actual_role
+          : typeof backendData?.actual_role === 'string'
+            ? backendData.actual_role
+            : undefined;
+
+        formattedMessage = backendErrorMessage;
+        if (backendActualRole && backendResponse.status === 403 && backendErrorMessage.toLowerCase().includes('role')) {
+          formattedMessage = formatRoleMismatchMessage(role, backendActualRole);
+        }
+        authErrorField = getAuthErrorField(formattedMessage);
       }
-
-      const authErrorField = getAuthErrorField(formattedMessage);
 
       if (backendResponse.status >= 400 && backendResponse.status < 500) {
         const authError = new Error(formattedMessage) as Error & { field?: AuthErrorField };
@@ -444,6 +476,15 @@ export async function completeAuthCallback() {
   return session;
 }
 
-export function getAuthRedirectPath(role: AuthRole) {
-  return role === 'tpa' ? '/app' : '/app';
+export function getAuthRedirectPath(session: Pick<AuthSession, 'accountRole' | 'organizationSlug'> | null | undefined) {
+  if (!session) {
+    return '/app';
+  }
+  if (session.accountRole === 'admin' && session.organizationSlug) {
+    return `/${session.organizationSlug}/admin`;
+  }
+  if (session.accountRole === 'reviewer' && session.organizationSlug) {
+    return `/${session.organizationSlug}/review`;
+  }
+  return '/app';
 }

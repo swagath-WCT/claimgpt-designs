@@ -15,11 +15,11 @@ interface RegisterBody {
   sum_insured?: string | number;
 }
 
-const INGRESS_BASE = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001';
+const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000';
+const INGRESS_BASE = rawBase.endsWith('/ingress') ? rawBase : `${rawBase.replace(/\/+$/, '')}/ingress`;
 
 async function proxyToIngress(path: string, body?: unknown) {
   const url = `${INGRESS_BASE}${path}`;
-
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -38,12 +38,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required registration fields.' }, { status: 400 });
     }
 
-    // Build payload for ingress service to create local user/profile records
+    // /register (patient)            -> role: 'patient' -> backend "submitter"
+    // /register/organization (admin) -> role: 'tpa'      -> backend "admin"
+    // Let the backend do the actual normalization/validation; we just
+    // translate the frontend's two-value role into what it expects.
     const profilePayload: Record<string, unknown> = {
       provider: 'local',
       username: body.username,
       password_hash: body.password_hash,
-      role: body.role === 'patient' ? 'submitter' : 'reviewer',
+      role: body.role === 'patient' ? 'submitter' : 'admin',
       first_name: body.first_name,
       last_name: body.last_name,
       phone: body.phone,
