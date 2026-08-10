@@ -229,6 +229,24 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       }
     }
 
+    const statusRes = await safeFetch(`${INGRESS_API}/claims/${claimId}/status?t=${Date.now()}`, {
+      cache: "no-store",
+      headers: getAuthHeaders(),
+    }, 3000);
+    if (statusRes && statusRes.ok) {
+      const data = await statusRes.json();
+      let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
+      const stepStr = (data.current_step || data.step || "").toUpperCase();
+      const statusStr = (data.status || "").toUpperCase();
+      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 95);
+
+      if (isComplete) {
+        return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
+      }
+
+      if (pct > 0) return { percentage: pct, step: stepStr || "OCR", status: statusStr || "PROCESSING", is_complete: false };
+    }
+
     const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, {
       cache: "no-store",
       headers: getAuthHeaders(),

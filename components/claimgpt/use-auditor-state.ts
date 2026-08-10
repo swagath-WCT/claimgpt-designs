@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   LINE_ITEMS,
   PIPELINE,
@@ -13,7 +13,9 @@ import {
   fetchClaimPreview,
   fetchLatestClaimId,
   fetchRecentClaims,
+  fetchClaimProgress,
   deleteClaimApi,
+
   type RealClaimPreview,
   type RecentClaimSummary,
   SUBMISSION_API,
@@ -41,6 +43,7 @@ export function useAuditorState() {
 
   const [progress, setProgress] = useState(0);
   const [activeStage, setActiveStage] = useState<Stage>('staged');
+  const [stepDescription, setStepDescription] = useState<string>("OCR (extracting text) · 20%");
   const [files, setFiles] = useState<{ name: string; size: string; type?: string }[]>([]);
   const [hoveredField, setHoveredField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -369,55 +372,34 @@ export function useAuditorState() {
     await startClaimAnalysis(filesToUpload, appendToActive);
   };
 
-  /* Begin Claim Analysis action button */
-  const startClaimAnalysis = async (overrideFiles?: File | File[], appendToActive = false) => {
-    let targetFiles: File[] = [];
-    if (overrideFiles) {
-      targetFiles = Array.isArray(overrideFiles) ? overrideFiles : [overrideFiles];
-    } else {
-      targetFiles = pendingFiles;
-    }
-
-    if (targetFiles.length === 0) return;
-
-    setAnalyzing(true);
-    setUploading(true);
-    setShowReportModal(false);
-    setIsLiveSessionCompleted(false);
-    setIsUploadOpen(true); // Keep open during analysis to show circular progress
-    setActiveStage('ocr');
-    setProgress(15);
-
-    scrollToPipeline();
-
-    let activeClaimId: string | null = null;
-    try {
-      const res = await uploadClaimDocument(targetFiles, userName, (appendToActive && claimId) ? claimId : undefined);
-      if (res.claim_id) {
-        activeClaimId = res.claim_id;
-        setClaimId(res.claim_id);
-
-        // Try immediate prefetch for this claim ID
-        const initialPreview = await fetchClaimPreview(res.claim_id);
-        if (initialPreview) {
-          setRealPreview(initialPreview);
-          setPreviewVersion((v) => v + 1);
-        }
-      }
-    } catch (err) {
-      console.warn("Backend API upload error:", err);
-    } finally {
-      setUploading(false);
-    }
-
-    runProgressSequence(activeClaimId);
-  };
-
   /* Progress animation + background data sync that keeps polling until real data arrives */
   const runProgressSequence = (targetClaimId: string | null) => {
-    let p = 15;
     let dataArrived = false;
-    let timer: NodeJS.Timeout;
+
+    const updateProgressAndStage = (targetPct: number, customStep?: string) => {
+      setProgress((prev) => {
+        const nextPct = Math.min(Math.max(prev, targetPct), 100);
+        if (nextPct >= 100) {
+          setActiveStage('scoring');
+          setStepDescription("Claim Analysis 100% Complete");
+        } else if (nextPct >= 80) {
+          setActiveStage('scoring');
+          setStepDescription(customStep || `Compliance & Risk Scoring · ${nextPct}%`);
+        } else if (nextPct >= 55) {
+          setActiveStage('coding');
+          setStepDescription(customStep || `ICD-10 / CPT Coding · ${nextPct}%`);
+        } else if (nextPct >= 35) {
+          setActiveStage('parsing');
+          setStepDescription(customStep || `Layout & Table Parsing · ${nextPct}%`);
+        } else {
+          setActiveStage('ocr');
+          setStepDescription(customStep || `OCR (extracting text) · ${nextPct}%`);
+        }
+        return nextPct;
+      });
+    };
+
+    updateProgressAndStage(20, "OCR (extracting text) · 20%");
 
     // Helper: fetch preview and update state if real data is present
     const tryFetchPreview = async (): Promise<boolean> => {
@@ -431,11 +413,11 @@ export function useAuditorState() {
             setRealPreview(freshData);
             setPreviewVersion((v) => v + 1);
             setClaimId(idToQuery);
-            clearInterval(timer);
             setAnalyzing(false);
             setIsLiveSessionCompleted(false);
             setProgress(100);
             setActiveStage('scoring');
+            setStepDescription("Manual Review Required");
             return true;
           }
 
@@ -466,46 +448,101 @@ export function useAuditorState() {
       if (dataArrived) return;
       dataArrived = true;
       clearInterval(pollInterval);
-      clearInterval(timer);
       setProgress(100);
       setActiveStage('scoring');
+      setStepDescription("Claim Analysis 100% Complete");
       setAnalyzing(false);
       setIsLiveSessionCompleted(true);
       reloadRecentClaims();
     };
 
-    // Background polling — continues every 600ms until Celery finishes OCR & LLM extraction
+    // Background polling — queries real backend status percentage & preview data every 600ms
     const pollStartTime = Date.now();
     const pollInterval = setInterval(async () => {
       if (dataArrived) { clearInterval(pollInterval); return; }
-      if (Date.now() - pollStartTime > 60000) {
+      if (Date.now() - pollStartTime > 180000) {
         finishProgress();
         return;
       }
+
+      const idToQuery = targetClaimId || (await fetchLatestClaimId());
+      if (idToQuery) {
+        const statusInfo = await fetchClaimProgress(idToQuery);
+        if (statusInfo && statusInfo.percentage > 0 && statusInfo.percentage < 100) {
+          let stepLabel: string | undefined = undefined;
+          if (statusInfo.step) {
+            const stepUpper = statusInfo.step.toUpperCase();
+            if (stepUpper.includes("OCR")) {
+              stepLabel = `OCR (extracting text) · ${statusInfo.percentage}%`;
+            } else if (stepUpper.includes("PARS") || stepUpper.includes("LAYOUT") || stepUpper.includes("TABLE")) {
+              stepLabel = `Layout & Table Parsing · ${statusInfo.percentage}%`;
+            } else if (stepUpper.includes("COD") || stepUpper.includes("ICD") || stepUpper.includes("CPT")) {
+              stepLabel = `ICD-10 / CPT Coding · ${statusInfo.percentage}%`;
+            } else if (stepUpper.includes("SCOR") || stepUpper.includes("COMPLIANCE") || stepUpper.includes("RISK")) {
+              stepLabel = `Compliance & Risk Scoring · ${statusInfo.percentage}%`;
+            } else {
+              stepLabel = `${statusInfo.step} · ${statusInfo.percentage}%`;
+            }
+          }
+          updateProgressAndStage(statusInfo.percentage, stepLabel);
+        }
+      }
+
       const got = await tryFetchPreview();
       if (got) {
         finishProgress();
       }
     }, 600);
-
-    // Animated progress bar — advances up to 92% and holds until backend finishes
-    timer = setInterval(() => {
-      if (dataArrived) {
-        clearInterval(timer);
-        return;
-      }
-      if (p < 92) {
-        p += 15;
-        const currentPct = Math.min(p, 92);
-        setProgress(currentPct);
-
-        if (currentPct >= 85) setActiveStage('scoring');
-        else if (currentPct >= 60) setActiveStage('coding');
-        else if (currentPct >= 35) setActiveStage('parsing');
-        else if (currentPct >= 15) setActiveStage('ocr');
-      }
-    }, 400);
   };
+
+  /* Begin Claim Analysis action button */
+  const startClaimAnalysis = async (overrideFiles?: File | File[], appendToActive = false) => {
+    let targetFiles: File[] = [];
+    if (overrideFiles) {
+      targetFiles = Array.isArray(overrideFiles) ? overrideFiles : [overrideFiles];
+    } else {
+      targetFiles = pendingFiles;
+    }
+
+    if (targetFiles.length === 0) return;
+
+    setAnalyzing(true);
+    setUploading(true);
+    setShowReportModal(false);
+    setIsLiveSessionCompleted(false);
+    setIsUploadOpen(true); // Keep open during analysis to show circular progress
+    setActiveStage('ocr');
+    setProgress(20);
+    setStepDescription("OCR (extracting text) · 20%");
+
+    scrollToPipeline();
+
+    let activeClaimId: string | null = null;
+    try {
+      const res = await uploadClaimDocument(targetFiles, userName, (appendToActive && claimId) ? claimId : undefined);
+      if (res.claim_id) {
+        activeClaimId = res.claim_id;
+        setClaimId(res.claim_id);
+
+        // Try immediate prefetch for this claim ID
+        const initialPreview = await fetchClaimPreview(res.claim_id);
+        if (initialPreview) {
+          setRealPreview(initialPreview);
+          setPreviewVersion((v) => v + 1);
+        }
+      }
+    } catch (err) {
+      console.warn("Backend API upload error:", err);
+    } finally {
+      setUploading(false);
+    }
+
+    runProgressSequence(activeClaimId);
+  };
+
+
+
+
 
   /* Manually open report modal and fetch selected or latest claim preview directly from backend */
   const openReportModal = async () => {
@@ -548,6 +585,26 @@ export function useAuditorState() {
   const tpaPdfViewUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/tpa-pdf?view=true` : null;
   const irdaPdfViewUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/irda-pdf?view=true` : null;
 
+  /* Detect Patient Name Mismatch warning from backend preview */
+  const nameMismatchWarning = useMemo(() => {
+    if (!realPreview) return null;
+    const validations = (realPreview as any).validations || [];
+    const nameVal = validations.find((v: any) =>
+      (v.name || v.rule_name || v.rule || '').toLowerCase().includes('name') &&
+      (v.passed === false || v.status === 'failed' || v.status === 'warning' || (v.message || v.warning || '').toLowerCase().includes('mismatch'))
+    );
+    if (nameVal) {
+      const msg = nameVal.message || nameVal.warning || nameVal.description;
+      return msg || "Patient Name Mismatch: Insured name differs from Patient name on bill";
+    }
+    const insured = (realPreview?.summary as any)?.insured_name || (realPreview as any)?.parsed_fields?.insured_name;
+    const patient = realPreview?.summary?.patient_name || (realPreview as any)?.parsed_fields?.patient_name;
+    if (insured && patient && insured.trim().toLowerCase() !== patient.trim().toLowerCase()) {
+      return `Patient Name Mismatch: Insured '${insured}' vs Patient '${patient}'`;
+    }
+    return null;
+  }, [realPreview]);
+
   return {
     progress,
     setProgress,
@@ -555,6 +612,8 @@ export function useAuditorState() {
     activeStage,
     setActiveStage,
     files,
+    setFiles,
+    pendingFiles,
     removeFile,
     hoveredField,
     setHoveredField,
@@ -575,10 +634,12 @@ export function useAuditorState() {
     setIsUploadOpen,
     toggleUploadOpen,
     isLiveSessionCompleted,
+    stepDescription,
     handleSelectFile,
     handleUploadFile,
     startClaimAnalysis,
     realPreview,
+    nameMismatchWarning,
     showReportModal,
     setShowReportModal,
     openReportModal,

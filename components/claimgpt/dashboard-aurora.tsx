@@ -249,7 +249,7 @@ export function DashboardAurora() {
                           </div>
                           <div>
                             <p className="text-base font-bold text-white">AI Medical Engine Analyzing...</p>
-                            <p className="text-xs font-semibold text-cyan-400 mt-1">{s.activeStage.toUpperCase()} STAGE ACTIVE ({s.progress}%)</p>
+                            <p className="text-xs font-semibold text-cyan-400 mt-1">{s.stepDescription || "OCR (extracting text) · 20%"}</p>
                           </div>
                         </div>
                       ) : s.isLiveSessionCompleted ? (
@@ -383,7 +383,7 @@ export function DashboardAurora() {
                     </div>
                     <div className="flex justify-between text-[10px] font-bold text-cyan-300/70 px-0.5">
                       <span>0%</span>
-                      <span className="font-extrabold text-cyan-300 bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
+                      <span className="font-extrabold text-cyan-300 bg-cyan-500/20 border border-cyan-500/30 px-2 py-0.2 rounded-full">{s.stepDescription || `${s.progress}% Active Stage`}</span>
                       <span className="text-cyan-400">100%</span>
                     </div>
                   </div>

@@ -265,7 +265,7 @@ export function DashboardClinical() {
                           </div>
                           <div>
                             <p className="text-base font-bold text-foreground">AI Medical Engine Analyzing...</p>
-                            <p className="text-xs font-semibold text-accent mt-1">{s.activeStage.toUpperCase()} STAGE ACTIVE ({s.progress}%)</p>
+                            <p className="text-xs font-semibold text-accent mt-1">{s.stepDescription || "OCR (extracting text) · 20%"}</p>
                           </div>
                         </div>
                       ) : s.isLiveSessionCompleted ? (
@@ -496,7 +496,7 @@ export function DashboardClinical() {
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                       <span>0%</span>
-                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
+                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.stepDescription || `${s.progress}% Active Stage`}</span>
                       <span>100%</span>
                     </div>
                   </div>
@@ -597,9 +597,24 @@ export function DashboardClinical() {
                       className="border-b border-border lg:border-b-0 lg:border-r"
                     />
                     <div className="flex flex-col">
-                      <div className="border-b border-border bg-slate-50/60 px-5 py-3">
+                      <div className="border-b border-border bg-slate-50/60 px-5 py-3 flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-foreground">Extracted Claim Data</h3>
+                        {s.nameMismatchWarning && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 animate-pulse">
+                            <AlertTriangle className="h-3 w-3 text-amber-600" />
+                            Name Mismatch
+                          </span>
+                        )}
                       </div>
+                      {s.nameMismatchWarning && (
+                        <div className="mx-5 mt-3 flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 shadow-sm animate-fade-in font-sans">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 flex-none mt-0.5" />
+                          <div>
+                            <h4 className="font-bold text-amber-900">Patient Name Mismatch Detected</h4>
+                            <p className="mt-0.5 text-amber-700 leading-relaxed">{s.nameMismatchWarning}</p>
+                          </div>
+                        </div>
+                      )}
                       <div key={`${s.claimId || 'default-clinical'}-${s.previewVersion}`} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
                         <MetaField id="c-patient-name" label="Patient Name" defaultValue={s.patientName} edited={!!s.edited['patient-name']} onEdit={() => s.markEdited('patient-name')} />
                         <MetaField id="c-hospital" label="Hospital" defaultValue={s.hospitalName} edited={!!s.edited['hospital']} onEdit={() => s.markEdited('hospital')} />
