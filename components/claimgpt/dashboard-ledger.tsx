@@ -381,7 +381,7 @@ export function DashboardLedger() {
                     </div>
                     <div className="flex justify-between text-[10px] font-bold text-amber-300/70 px-0.5">
                       <span>0%</span>
-                      <span className="font-extrabold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.2 rounded-full">{s.stepDescription || `${s.progress}% Active Stage`}</span>
+                      <span className="font-extrabold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.2 rounded-full">{s.progress >= 100 ? "100% Complete" : (s.stepDescription || `${s.progress}% Active Stage`)}</span>
                       <span className="text-amber-400">100%</span>
                     </div>
                   </div>

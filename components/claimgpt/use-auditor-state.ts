@@ -43,7 +43,7 @@ export function useAuditorState() {
 
   const [progress, setProgress] = useState(0);
   const [activeStage, setActiveStage] = useState<Stage>('staged');
-  const [stepDescription, setStepDescription] = useState<string>("OCR (extracting text) · 20%");
+  const [stepDescription, setStepDescription] = useState<string>("Claim Analysis Complete");
   const [files, setFiles] = useState<{ name: string; size: string; type?: string }[]>([]);
   const [hoveredField, setHoveredField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -197,6 +197,7 @@ export function useAuditorState() {
             setPreviewVersion((v) => v + 1);
             setProgress(100);
             setActiveStage('scoring');
+            setStepDescription("Claim Analysis Complete");
             setIsLiveSessionCompleted(false);
             setIsUploadOpen(false); // Collapse upload panel so workspace & pipeline sit at top
           }
@@ -272,6 +273,7 @@ export function useAuditorState() {
         setPreviewVersion((v) => v + 1);
         setProgress(100);
         setActiveStage('scoring');
+        setStepDescription("Claim Analysis Complete");
         setIsLiveSessionCompleted(false);
       }
     } catch (err) {
@@ -360,6 +362,9 @@ export function useAuditorState() {
     setFiles([]);
     setAnalyzing(false);
     setUploading(false);
+    setProgress(0);
+    setActiveStage('staged');
+    setStepDescription("Ready for Analysis");
     setIsLiveSessionCompleted(false);
     setIsUploadOpen(true);
     setActiveDocumentId(null);
@@ -401,49 +406,6 @@ export function useAuditorState() {
 
     updateProgressAndStage(20, "OCR (extracting text) · 20%");
 
-    // Helper: fetch preview and update state if real data is present
-    const tryFetchPreview = async (): Promise<boolean> => {
-      const idToQuery = targetClaimId || (await fetchLatestClaimId());
-      if (!idToQuery) return false;
-      try {
-        const freshData = await fetchClaimPreview(idToQuery);
-        if (freshData) {
-          const statusStr = (freshData.status || "").toUpperCase();
-          if (statusStr === "DOCUMENTS_REQUESTED" || statusStr === "MANUAL_REVIEW_REQUIRED") {
-            setRealPreview(freshData);
-            setPreviewVersion((v) => v + 1);
-            setClaimId(idToQuery);
-            setAnalyzing(false);
-            setIsLiveSessionCompleted(false);
-            setProgress(100);
-            setActiveStage('scoring');
-            setStepDescription("Manual Review Required");
-            return true;
-          }
-
-          const hasParsedFields = Boolean(freshData.parsed_fields && Object.keys(freshData.parsed_fields).length > 0);
-          const hasSummaryFields = Boolean(
-            freshData.summary && (
-              (freshData.summary.patient_name && freshData.summary.patient_name !== "N/A") ||
-              (freshData.summary.hospital && freshData.summary.hospital !== "N/A") ||
-              (freshData.summary.diagnosis && freshData.summary.diagnosis !== "N/A")
-            )
-          );
-          const isDoneStatus = statusStr === "COMPLETED" || statusStr === "VALIDATED";
-
-          if (hasParsedFields || hasSummaryFields || isDoneStatus) {
-            setRealPreview(freshData);
-            setPreviewVersion((v) => v + 1);
-            setClaimId(idToQuery);
-            return true;
-          }
-        }
-      } catch {
-        /* ignore poll error */
-      }
-      return false;
-    };
-
     const finishProgress = () => {
       if (dataArrived) return;
       dataArrived = true;
@@ -466,9 +428,47 @@ export function useAuditorState() {
       }
 
       const idToQuery = targetClaimId || (await fetchLatestClaimId());
-      if (idToQuery) {
-        const statusInfo = await fetchClaimProgress(idToQuery);
-        if (statusInfo && statusInfo.percentage > 0 && statusInfo.percentage < 100) {
+      if (!idToQuery) return;
+
+      const statusInfo = await fetchClaimProgress(idToQuery);
+      if (statusInfo) {
+        if (statusInfo.is_complete || statusInfo.percentage >= 100 || statusInfo.status === "COMPLETED" || statusInfo.status === "VALIDATED") {
+          try {
+            const finalData = await fetchClaimPreview(idToQuery);
+            if (finalData) {
+              setRealPreview(finalData);
+              setPreviewVersion((v) => v + 1);
+              setClaimId(idToQuery);
+            }
+          } catch {
+            /* ignore preview fetch error */
+          }
+          finishProgress();
+          return;
+        }
+
+        if (statusInfo.status === "DOCUMENTS_REQUESTED" || statusInfo.status === "MANUAL_REVIEW_REQUIRED") {
+          try {
+            const finalData = await fetchClaimPreview(idToQuery);
+            if (finalData) {
+              setRealPreview(finalData);
+              setPreviewVersion((v) => v + 1);
+              setClaimId(idToQuery);
+            }
+          } catch {
+            /* ignore preview fetch error */
+          }
+          setAnalyzing(false);
+          setIsLiveSessionCompleted(false);
+          setProgress(100);
+          setActiveStage('scoring');
+          setStepDescription("Manual Review Required");
+          dataArrived = true;
+          clearInterval(pollInterval);
+          return;
+        }
+
+        if (statusInfo.percentage > 0 && statusInfo.percentage < 100) {
           let stepLabel: string | undefined = undefined;
           if (statusInfo.step) {
             const stepUpper = statusInfo.step.toUpperCase();
@@ -486,11 +486,6 @@ export function useAuditorState() {
           }
           updateProgressAndStage(statusInfo.percentage, stepLabel);
         }
-      }
-
-      const got = await tryFetchPreview();
-      if (got) {
-        finishProgress();
       }
     }, 600);
   };

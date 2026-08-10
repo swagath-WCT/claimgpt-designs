@@ -496,7 +496,7 @@ export function DashboardClinical() {
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                       <span>0%</span>
-                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.stepDescription || `${s.progress}% Active Stage`}</span>
+                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.progress >= 100 ? "100% Complete" : (s.stepDescription || `${s.progress}% Active Stage`)}</span>
                       <span>100%</span>
                     </div>
                   </div>
