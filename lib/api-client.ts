@@ -224,7 +224,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
         (prevData.parsed_fields && Object.keys(prevData.parsed_fields).length > 0) ||
         (prevData.summary && prevData.summary.patient_name && prevData.summary.patient_name !== "N/A")
       );
-      if (statusStr === "COMPLETED" || statusStr === "VALIDATED" || hasSummary) {
+      if (statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "MANUAL_REVIEW_REQUIRED" || statusStr === "DOCUMENTS_REQUESTED" || hasSummary) {
         return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
       }
     }
@@ -238,7 +238,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
       const stepStr = (data.current_step || data.step || "").toUpperCase();
       const statusStr = (data.status || "").toUpperCase();
-      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 95);
+      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || statusStr === "MANUAL_REVIEW_REQUIRED" || statusStr === "DOCUMENTS_REQUESTED" || pct >= 95);
 
       if (isComplete) {
         return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
@@ -256,7 +256,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       let pct = typeof data.percentage === "number" ? data.percentage : 0;
       const stepStr = (data.current_step || data.step || "").toUpperCase();
       const statusStr = (data.status || "").toUpperCase();
-      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || stepStr.includes("FINALIZE") || stepStr.includes("COMPLETED") || pct >= 95);
+      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || statusStr === "MANUAL_REVIEW_REQUIRED" || statusStr === "DOCUMENTS_REQUESTED" || stepStr.includes("FINALIZE") || stepStr.includes("COMPLETED") || pct >= 95);
 
       if (isComplete) {
         return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };

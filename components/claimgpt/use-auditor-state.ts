@@ -270,8 +270,19 @@ export function useAuditorState() {
       if (prevData) {
         setRealPreview(prevData);
         setPreviewVersion((v) => v + 1);
-        setProgress(100);
-        setActiveStage('scoring');
+        
+        const statusStr = (prevData.status || "").toUpperCase();
+        if (statusStr === "DOCUMENTS_REQUESTED" || statusStr === "MANUAL_REVIEW_REQUIRED") {
+          setIsDocumentsRequested(statusStr === "DOCUMENTS_REQUESTED");
+          setProgress(100);
+          setActiveStage('scoring');
+          setStepDescription(statusStr === "DOCUMENTS_REQUESTED" ? "Documents Requested" : "Manual Review Required");
+        } else {
+          setIsDocumentsRequested(false);
+          setProgress(100);
+          setActiveStage('scoring');
+          setStepDescription("Claim Analysis 100% Complete");
+        }
         setIsLiveSessionCompleted(false);
       }
     } catch (err) {
@@ -506,6 +517,13 @@ export function useAuditorState() {
 
     if (targetFiles.length === 0) return;
 
+    if (!appendToActive) {
+      setRealPreview(null);
+      setClaimId(null);
+      setIsDocumentsRequested(false);
+      setMissingGroups([]);
+    }
+
     setAnalyzing(true);
     setUploading(true);
     setShowReportModal(false);
@@ -588,6 +606,14 @@ export function useAuditorState() {
   /* Detect Patient Name Mismatch warning from backend preview */
   const nameMismatchWarning = useMemo(() => {
     if (!realPreview) return null;
+
+    // Direct status check: if claim is in MANUAL_REVIEW_REQUIRED status, it has a name mismatch
+    const statusStr = (realPreview.status || "").toUpperCase();
+    if (statusStr === "MANUAL_REVIEW_REQUIRED") {
+      const patName = realPreview.summary?.patient_name || (realPreview as any).parsed_fields?.patient_name || "the patient";
+      return `Patient Name Mismatch: The name on the uploaded Identity Proof does not match the patient name (${patName}). Please upload the correct ID proof.`;
+    }
+
     const validations = (realPreview as any).validations || [];
     const nameVal = validations.find((v: any) =>
       (v.name || v.rule_name || v.rule || '').toLowerCase().includes('name') &&
