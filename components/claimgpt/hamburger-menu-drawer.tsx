@@ -173,10 +173,10 @@ export function HamburgerMenuDrawer({
         </div>
 
         {/* Navigation Menu List */}
-        <div className="px-3 py-4 space-y-1 flex-1 overflow-y-auto scrollbar-thin">
-          <p className={`px-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider ${themeStyles.subtitle}`}>Navigation Menu</p>
+        <div className="px-3 py-4 space-y-1.5 flex-1 overflow-y-auto scrollbar-thin">
+          <p className={`px-3 pb-1 text-[10px] font-bold uppercase tracking-wider ${themeStyles.subtitle}`}>Navigation Menu</p>
 
-          {/* Item 1: My Profile */}
+          {/* Item 1: Profile */}
           <button
             type="button"
             onClick={() => {
@@ -187,64 +187,38 @@ export function HamburgerMenuDrawer({
           >
             <div className="flex items-center gap-3">
               <User className={`h-4 w-4 ${themeStyles.iconColor}`} />
-              <span>My Profile</span>
+              <span>Profile</span>
             </div>
             <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase ${themeStyles.activeTag}`}>View</span>
           </button>
 
-          {/* Item 2: Dashboard */}
+          {/* Item 2: Home */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              onClose();
+              router.push('/app');
+            }}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs ${themeStyles.navText}`}
           >
             <LayoutDashboard className={`h-4 w-4 ${themeStyles.iconColor}`} />
-            <span>Dashboard</span>
+            <span>Home</span>
           </button>
 
-          {/* Item 3: Risk & Fraud Alerts */}
+          {/* Item 3: All Claims */}
           <button
             type="button"
-            onClick={onClose}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all text-xs ${themeStyles.navText}`}
-          >
-            <div className="flex items-center gap-3">
-              <ShieldAlert className="h-4 w-4 text-amber-500" />
-              <span>Risk &amp; Fraud Alerts</span>
-            </div>
-            <span className={`rounded-full px-2 py-0.2 text-[10px] font-bold ${themeStyles.riskBadge}`}>
-              57
-            </span>
-          </button>
-
-          {/* Item 4: Processed Claims & Reports */}
-          <button
-            type="button"
-            onClick={onClose}
+            onClick={() => {
+              onClose();
+              const el = document.getElementById('processed-claims-section');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs ${themeStyles.navText}`}
           >
             <FileText className={`h-4 w-4 ${themeStyles.iconColor}`} />
-            <span>Processed Claims &amp; Reports</span>
-          </button>
-
-          {/* Item 5: Care Plans & Coverage */}
-          <button
-            type="button"
-            onClick={onClose}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs ${themeStyles.navText}`}
-          >
-            <HeartHandshake className={`h-4 w-4 ${themeStyles.iconColor}`} />
-            <span>Care Plans &amp; Coverage</span>
-          </button>
-
-          {/* Item 6: Hospital Integrations */}
-          <button
-            type="button"
-            onClick={onClose}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs ${themeStyles.navText}`}
-          >
-            <Building2 className={`h-4 w-4 ${themeStyles.iconColor}`} />
-            <span>Hospital Integrations</span>
+            <span>All Claims</span>
           </button>
 
           <div className="pt-3 pb-1">
@@ -253,31 +227,11 @@ export function HamburgerMenuDrawer({
 
           <p className={`px-3 pb-1 text-[10px] font-bold uppercase tracking-wider ${themeStyles.subtitle}`}>Account &amp; System</p>
 
-          {/* Item 7: Settings */}
-          <button
-            type="button"
-            onClick={onClose}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs ${themeStyles.navText}`}
-          >
-            <Settings className="h-4 w-4 opacity-70" />
-            <span>Account Settings</span>
-          </button>
-
-          {/* Item 8: Help & Support */}
-          <button
-            type="button"
-            onClick={onClose}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs ${themeStyles.navText}`}
-          >
-            <HelpCircle className="h-4 w-4 opacity-70" />
-            <span>Help &amp; Support</span>
-          </button>
-
-          {/* Item 9: Sign Out */}
+          {/* Sign Out */}
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 transition-all text-xs mt-2 font-medium"
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 transition-all text-xs font-medium"
           >
             <LogOut className="h-4 w-4 text-rose-500" />
             <span>Sign Out / Switch Account</span>

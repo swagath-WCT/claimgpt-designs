@@ -6,9 +6,9 @@
 
 import { getStoredAuthSession } from '@/lib/auth';
 
-export const INGRESS_API = "http://localhost:8000/ingress";
-export const SUBMISSION_API = "http://localhost:8000/submission";
-export const CHAT_API = "http://localhost:8000/chat";
+export const INGRESS_API = process.env.NEXT_PUBLIC_INGRESS_API || "http://127.0.0.1:8001";
+export const SUBMISSION_API = process.env.NEXT_PUBLIC_SUBMISSION_API || "http://127.0.0.1:8008";
+export const CHAT_API = process.env.NEXT_PUBLIC_CHAT_API || "http://127.0.0.1:8009";
 
 export interface ClaimDocumentPreview {
   document_id?: string;
@@ -38,48 +38,44 @@ export interface RealClaimPreview {
     patient_name: string;
     age: string;
     gender: string;
-    hospital: string;
-    doctor: string;
     admission_date: string;
     discharge_date: string;
+    hospital: string;
     diagnosis: string;
-    total_amount: string;
-    icd_count: number;
-    cpt_count: number;
-    risk_score: number | null;
+    total_amount?: string;
+    risk_score?: number | null;
   };
 }
 
 export interface RecentClaimSummary {
   id: string;
-  patient_name?: string;
-  status?: string;
-  created_at?: string;
+  patient_name: string;
+  status: string;
+  created_at: string;
   total_amount?: string;
 }
 
-export function getAuthHeaders() {
-  const session = getStoredAuthSession();
-  const headers: Record<string, string> = {};
-  if (session?.accessToken) {
-    headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-  return headers;
+/**
+ * Check if a claim ID is a local mock/demo ID (e.g., demo-001, CLM-123456)
+ * to avoid issuing bad requests to the backend server.
+ */
+export function isMockId(id?: string | null): boolean {
+  if (!id) return true;
+  if (id.startsWith('demo-')) return true;
+  if (id.startsWith('CLM-')) return true;
+  return false;
 }
 
 /**
- * Check if a claim ID is a local frontend mock/demo ID (e.g. demo-003, CLM-876638)
+ * Helper to produce Authorization header if token exists
  */
-
-export function isMockId(id: string): boolean {
-  if (!id) return true;
-  const lower = id.toLowerCase();
-  return (
-    lower.startsWith("clm-") ||
-    lower.startsWith("demo-") ||
-    lower.startsWith("mock-") ||
-    lower.includes("demo")
-  );
+function getAuthHeaders(): Record<string, string> {
+  const session = getStoredAuthSession();
+  const token = session?.accessToken || session?.idToken;
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
 }
 
 /**
@@ -91,14 +87,35 @@ async function safeFetch(url: string, options?: RequestInit, timeoutMs = 8000): 
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const authHeaders = getAuthHeaders();
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       ...options,
       headers: {
         ...authHeaders,
         ...(options?.headers || {}),
       },
       signal: controller.signal,
-    });
+    }).catch(() => null);
+
+    // Fallback between direct docker microservice port (8001/8008) and nginx gateway port 8000
+    if (!res) {
+      let altUrl = '';
+      if (url.includes(':8000/ingress')) altUrl = url.replace(':8000/ingress', ':8001');
+      else if (url.includes(':8001')) altUrl = url.replace(':8001', ':8000/ingress');
+      else if (url.includes(':8000/submission')) altUrl = url.replace(':8000/submission', ':8008');
+      else if (url.includes(':8008')) altUrl = url.replace(':8008', ':8000/submission');
+
+      if (altUrl) {
+        res = await fetch(altUrl, {
+          ...options,
+          headers: {
+            ...authHeaders,
+            ...(options?.headers || {}),
+          },
+          signal: controller.signal,
+        }).catch(() => null);
+      }
+    }
+
     clearTimeout(timeoutId);
     return res;
   } catch (err) {
@@ -210,6 +227,24 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       if (statusStr === "COMPLETED" || statusStr === "VALIDATED" || hasSummary) {
         return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
       }
+    }
+
+    const statusRes = await safeFetch(`${INGRESS_API}/claims/${claimId}/status?t=${Date.now()}`, {
+      cache: "no-store",
+      headers: getAuthHeaders(),
+    }, 3000);
+    if (statusRes && statusRes.ok) {
+      const data = await statusRes.json();
+      let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
+      const stepStr = (data.current_step || data.step || "").toUpperCase();
+      const statusStr = (data.status || "").toUpperCase();
+      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 95);
+
+      if (isComplete) {
+        return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
+      }
+
+      if (pct > 0) return { percentage: pct, step: stepStr || "OCR", status: statusStr || "PROCESSING", is_complete: false };
     }
 
     const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, {

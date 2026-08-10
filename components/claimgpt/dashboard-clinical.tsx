@@ -52,6 +52,17 @@ import { cn } from '@/lib/utils';
 
 export function DashboardClinical() {
   const s = useAuditorState();
+  const [claimToDelete, setClaimToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const processingInList = s.recentClaims.filter((c) => {
+    const st = (c.status || "").toUpperCase();
+    return st === "PENDING" || st === "PROCESSING" || st === "IN_PROGRESS" || st === "QUEUED" || (st !== "COMPLETED" && st !== "VALIDATED" && st !== "FINISHED" && st !== "REJECTED");
+  });
+
+  const isCurrentClaimProcessing = (s.progress > 0 && s.progress < 100) || s.uploading || s.analyzing;
+  const currentInList = processingInList.some((c) => c.id === s.claimId);
+
+  const activeQueueCount = processingInList.length + (isCurrentClaimProcessing && !currentInList ? 1 : 0);
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground">
@@ -89,7 +100,7 @@ export function DashboardClinical() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-500 opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-600" />
               </span>
-              Processing Queue: <CountUp end={3} />
+              Processing Queue: <CountUp end={activeQueueCount} />
             </span>
             <LanguageSwitcher variant="light" />
             <NotificationBell variant="clinical" />
@@ -150,6 +161,7 @@ export function DashboardClinical() {
                   ) : (
                     s.recentClaims.map((claim) => {
                       const isSelected = claim.id === s.claimId;
+                      const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                       return (
                         <button
                           key={claim.id}
@@ -164,19 +176,27 @@ export function DashboardClinical() {
                         >
                           <div className="flex items-center justify-between gap-1">
                             <p className="text-xs font-bold truncate text-foreground min-w-0 flex-1">
-                              {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
+                              {claimName}
                             </p>
                             <div className="flex items-center gap-1.5 flex-none">
                               {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
                               <span
                                 role="button"
                                 tabIndex={0}
-                                onClick={(e) => s.deleteClaim(claim.id, e as any)}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClaimToDelete({ id: claim.id, name: claimName });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    setClaimToDelete({ id: claim.id, name: claimName });
+                                  }
+                                }}
                                 className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
-                                title="Remove claim"
+                                title="Delete claim"
                               >
-                                <X className="h-3.5 w-3.5" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </span>
                             </div>
                           </div>
@@ -245,7 +265,7 @@ export function DashboardClinical() {
                           </div>
                           <div>
                             <p className="text-base font-bold text-foreground">AI Medical Engine Analyzing...</p>
-                            <p className="text-xs font-semibold text-accent mt-1">{s.activeStage.toUpperCase()} STAGE ACTIVE ({s.progress}%)</p>
+                            <p className="text-xs font-semibold text-accent mt-1">{s.stepDescription || "OCR (extracting text) · 20%"}</p>
                           </div>
                         </div>
                       ) : s.isLiveSessionCompleted ? (
@@ -359,46 +379,71 @@ export function DashboardClinical() {
 
                   <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin snap-x">
                     {s.recentClaims.length === 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => s.selectClaim(s.claimId || "")}
-                        className="flex-none snap-start rounded-lg border border-accent bg-accent/10 px-3.5 py-2 text-left shadow-sm min-w-[150px]"
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          <p className="text-xs font-bold truncate text-foreground">{s.patientName}</p>
-                          <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" />
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                          ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "Active Claim"}
-                        </p>
-                      </button>
+                      s.claimId ? (
+                        <button
+                          type="button"
+                          onClick={() => s.selectClaim(s.claimId || "")}
+                          className="flex-none snap-start rounded-lg border border-accent bg-accent/10 px-3.5 py-2 text-left shadow-sm min-w-[150px]"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-xs font-bold truncate text-foreground">{s.patientName || "Patient Record"}</p>
+                            <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            ID: {s.claimId.slice(0, 8)}...
+                          </p>
+                        </button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic py-1 px-1">No uploaded claims present</p>
+                      )
                     ) : (
-                      s.recentClaims.map((claim) => {
-                        const isSelected = claim.id === s.claimId;
-                        return (
-                          <button
-                            key={claim.id}
-                            type="button"
-                            onClick={() => s.selectClaim(claim.id)}
-                            className={cn(
-                              "flex-none snap-start rounded-lg border px-3.5 py-2 text-left transition-all tap-highlight-none min-w-[150px]",
-                              isSelected
-                                ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent"
-                                : "border-border bg-slate-50 hover:bg-slate-100"
-                            )}
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <p className="text-xs font-bold truncate text-foreground">
-                                {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
-                              </p>
-                              {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                              ID: {claim.id.slice(0, 8)}...
+                    s.recentClaims.map((claim) => {
+                      const isSelected = claim.id === s.claimId;
+                      const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
+                      return (
+                        <button
+                          key={claim.id}
+                          type="button"
+                          onClick={() => s.selectClaim(claim.id)}
+                          className={cn(
+                            "flex-none snap-start rounded-lg border px-3.5 py-2 text-left transition-all tap-highlight-none min-w-[170px]",
+                            isSelected
+                              ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent"
+                              : "border-border bg-slate-50 hover:bg-slate-100"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-xs font-bold truncate text-foreground min-w-0 flex-1">
+                              {claimName}
                             </p>
-                          </button>
-                        );
-                      })
+                            <div className="flex items-center gap-1.5 flex-none">
+                              {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClaimToDelete({ id: claim.id, name: claimName });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    setClaimToDelete({ id: claim.id, name: claimName });
+                                  }
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                                title="Delete claim"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            ID: {claim.id.slice(0, 8)}...
+                          </p>
+                        </button>
+                      );
+                    })
                     )}
                   </div>
                 </div>
@@ -451,7 +496,7 @@ export function DashboardClinical() {
                     </div>
                     <div className="mt-1 flex items-center justify-between text-xs font-semibold text-muted-foreground">
                       <span>0%</span>
-                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.progress}% Active Stage</span>
+                      <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.stepDescription || `${s.progress}% Active Stage`}</span>
                       <span>100%</span>
                     </div>
                   </div>
@@ -540,10 +585,11 @@ export function DashboardClinical() {
                   <div className="grid grid-cols-1 lg:grid-cols-2">
                     <DocumentViewer
                       claimId={s.claimId}
+                      fileObj={s.files.length > 0 ? s.files[s.files.length - 1] : null}
                       zoom={s.zoom}
                       setZoom={s.setZoom}
                       hoveredField={s.hoveredField}
-                      filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || s.files[0]?.name}
+                      filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || (s.files.length > 0 ? s.files[s.files.length - 1]?.name : undefined)}
                       documents={s.realPreview?.documents}
                       activeDocumentId={s.activeDocumentId}
                       onSelectDocument={s.setActiveDocumentId}
@@ -551,9 +597,24 @@ export function DashboardClinical() {
                       className="border-b border-border lg:border-b-0 lg:border-r"
                     />
                     <div className="flex flex-col">
-                      <div className="border-b border-border bg-slate-50/60 px-5 py-3">
+                      <div className="border-b border-border bg-slate-50/60 px-5 py-3 flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-foreground">Extracted Claim Data</h3>
+                        {s.nameMismatchWarning && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 animate-pulse">
+                            <AlertTriangle className="h-3 w-3 text-amber-600" />
+                            Name Mismatch
+                          </span>
+                        )}
                       </div>
+                      {s.nameMismatchWarning && (
+                        <div className="mx-5 mt-3 flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 shadow-sm animate-fade-in font-sans">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 flex-none mt-0.5" />
+                          <div>
+                            <h4 className="font-bold text-amber-900">Patient Name Mismatch Detected</h4>
+                            <p className="mt-0.5 text-amber-700 leading-relaxed">{s.nameMismatchWarning}</p>
+                          </div>
+                        </div>
+                      )}
                       <div key={`${s.claimId || 'default-clinical'}-${s.previewVersion}`} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
                         <MetaField id="c-patient-name" label="Patient Name" defaultValue={s.patientName} edited={!!s.edited['patient-name']} onEdit={() => s.markEdited('patient-name')} />
                         <MetaField id="c-hospital" label="Hospital" defaultValue={s.hospitalName} edited={!!s.edited['hospital']} onEdit={() => s.markEdited('hospital')} />
@@ -605,6 +666,7 @@ export function DashboardClinical() {
         isOpen={s.showDocModal}
         onClose={s.closeDocModal}
         claimId={s.claimId}
+        fileObj={s.files.length > 0 ? s.files[s.files.length - 1] : null}
         patientName={s.patientName}
         documents={s.realPreview?.documents}
         initialDocId={s.activeDocumentId}
@@ -615,6 +677,47 @@ export function DashboardClinical() {
 
       {/* Slide-out Sidebar Navigation Drawer */}
       <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="clinical" />
+
+      {/* Delete Claim Confirmation Modal */}
+      {claimToDelete && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in font-sans">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl animate-scale-up">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Delete Claim?</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Are you sure you want to remove <span className="font-semibold text-slate-700">{claimToDelete.name}</span>?</p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setClaimToDelete(null)}
+                className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  s.deleteClaim(claimToDelete.id);
+                  setClaimToDelete(null);
+                }}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-sm"
+              >
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
