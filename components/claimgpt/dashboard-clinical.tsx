@@ -52,15 +52,17 @@ import { cn } from '@/lib/utils';
 
 export function DashboardClinical() {
   const s = useAuditorState();
+  const [claimToDelete, setClaimToDelete] = useState<{ id: string; name: string } | null>(null);
 
-  const activeProcessingClaim = (s.progress > 0 && s.progress < 100) || s.uploading || s.analyzing ? 1 : 0;
-  const otherProcessingClaims = s.recentClaims.filter((c) => {
+  const processingInList = s.recentClaims.filter((c) => {
     const st = (c.status || "").toUpperCase();
-    const isFinished = st === "COMPLETED" || st === "VALIDATED" || st === "FINISHED" || st === "REJECTED";
-    return !isFinished && c.id !== s.claimId;
-  }).length;
+    return st === "PENDING" || st === "PROCESSING" || st === "IN_PROGRESS" || st === "QUEUED" || (st !== "COMPLETED" && st !== "VALIDATED" && st !== "FINISHED" && st !== "REJECTED");
+  });
 
-  const activeQueueCount = activeProcessingClaim + otherProcessingClaims;
+  const isCurrentClaimProcessing = (s.progress > 0 && s.progress < 100) || s.uploading || s.analyzing;
+  const currentInList = processingInList.some((c) => c.id === s.claimId);
+
+  const activeQueueCount = processingInList.length + (isCurrentClaimProcessing && !currentInList ? 1 : 0);
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground">
@@ -159,6 +161,7 @@ export function DashboardClinical() {
                   ) : (
                     s.recentClaims.map((claim) => {
                       const isSelected = claim.id === s.claimId;
+                      const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                       return (
                         <button
                           key={claim.id}
@@ -173,19 +176,27 @@ export function DashboardClinical() {
                         >
                           <div className="flex items-center justify-between gap-1">
                             <p className="text-xs font-bold truncate text-foreground min-w-0 flex-1">
-                              {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
+                              {claimName}
                             </p>
                             <div className="flex items-center gap-1.5 flex-none">
                               {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
                               <span
                                 role="button"
                                 tabIndex={0}
-                                onClick={(e) => s.deleteClaim(claim.id, e as any)}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClaimToDelete({ id: claim.id, name: claimName });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    setClaimToDelete({ id: claim.id, name: claimName });
+                                  }
+                                }}
                                 className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
-                                title="Remove claim"
+                                title="Delete claim"
                               >
-                                <X className="h-3.5 w-3.5" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </span>
                             </div>
                           </div>
@@ -386,44 +397,53 @@ export function DashboardClinical() {
                         <p className="text-xs text-muted-foreground italic py-1 px-1">No uploaded claims present</p>
                       )
                     ) : (
-                      s.recentClaims.map((claim) => {
-                        const isSelected = claim.id === s.claimId;
-                        return (
-                          <button
-                            key={claim.id}
-                            type="button"
-                            onClick={() => s.selectClaim(claim.id)}
-                            className={cn(
-                              "flex-none snap-start rounded-lg border px-3.5 py-2 text-left transition-all tap-highlight-none min-w-[170px]",
-                              isSelected
-                                ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent"
-                                : "border-border bg-slate-50 hover:bg-slate-100"
-                            )}
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <p className="text-xs font-bold truncate text-foreground min-w-0 flex-1">
-                                {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
-                              </p>
-                              <div className="flex items-center gap-1.5 flex-none">
-                                {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={(e) => s.deleteClaim(claim.id, e as any)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
-                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
-                                  title="Remove claim"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </span>
-                              </div>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                              ID: {claim.id.slice(0, 8)}...
+                    s.recentClaims.map((claim) => {
+                      const isSelected = claim.id === s.claimId;
+                      const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
+                      return (
+                        <button
+                          key={claim.id}
+                          type="button"
+                          onClick={() => s.selectClaim(claim.id)}
+                          className={cn(
+                            "flex-none snap-start rounded-lg border px-3.5 py-2 text-left transition-all tap-highlight-none min-w-[170px]",
+                            isSelected
+                              ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent"
+                              : "border-border bg-slate-50 hover:bg-slate-100"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-xs font-bold truncate text-foreground min-w-0 flex-1">
+                              {claimName}
                             </p>
-                          </button>
-                        );
-                      })
+                            <div className="flex items-center gap-1.5 flex-none">
+                              {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClaimToDelete({ id: claim.id, name: claimName });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    setClaimToDelete({ id: claim.id, name: claimName });
+                                  }
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                                title="Delete claim"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            ID: {claim.id.slice(0, 8)}...
+                          </p>
+                        </button>
+                      );
+                    })
                     )}
                   </div>
                 </div>
@@ -565,10 +585,11 @@ export function DashboardClinical() {
                   <div className="grid grid-cols-1 lg:grid-cols-2">
                     <DocumentViewer
                       claimId={s.claimId}
+                      fileObj={s.files.length > 0 ? s.files[s.files.length - 1] : null}
                       zoom={s.zoom}
                       setZoom={s.setZoom}
                       hoveredField={s.hoveredField}
-                      filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || s.files[0]?.name}
+                      filename={s.realPreview?.documents?.[0]?.display_title || s.realPreview?.documents?.[0]?.original_filename || (s.files.length > 0 ? s.files[s.files.length - 1]?.name : undefined)}
                       documents={s.realPreview?.documents}
                       activeDocumentId={s.activeDocumentId}
                       onSelectDocument={s.setActiveDocumentId}
@@ -630,6 +651,7 @@ export function DashboardClinical() {
         isOpen={s.showDocModal}
         onClose={s.closeDocModal}
         claimId={s.claimId}
+        fileObj={s.files.length > 0 ? s.files[s.files.length - 1] : null}
         patientName={s.patientName}
         documents={s.realPreview?.documents}
         initialDocId={s.activeDocumentId}
@@ -640,6 +662,47 @@ export function DashboardClinical() {
 
       {/* Slide-out Sidebar Navigation Drawer */}
       <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="clinical" />
+
+      {/* Delete Claim Confirmation Modal */}
+      {claimToDelete && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in font-sans">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl animate-scale-up">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Delete Claim?</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Are you sure you want to remove <span className="font-semibold text-slate-700">{claimToDelete.name}</span>?</p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setClaimToDelete(null)}
+                className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100 font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  s.deleteClaim(claimToDelete.id);
+                  setClaimToDelete(null);
+                }}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-sm"
+              >
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

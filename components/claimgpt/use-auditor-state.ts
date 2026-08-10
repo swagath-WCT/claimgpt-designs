@@ -335,7 +335,8 @@ export function useAuditorState() {
       ...incoming.map((f) => ({
         name: f.name,
         size: f.size > 1024 * 1024 ? `${(f.size / (1024 * 1024)).toFixed(1)} MB` : `${(f.size / 1024).toFixed(0)} KB`,
-        type: f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/png')
+        type: f.type || (f.name.endsWith('.pdf') ? 'application/pdf' : 'image/png'),
+        rawFile: f,
       })),
     ]);
 
