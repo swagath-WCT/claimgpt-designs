@@ -108,7 +108,7 @@ export function SpotlightCard({
 /* ------------------------------------------------------------------ */
 export function CountUp({
   end,
-  duration = 1400,
+  duration = 800,
   prefix = '',
   suffix = '',
   decimals = 0,
@@ -121,33 +121,30 @@ export function CountUp({
   decimals?: number;
   className?: string;
 }) {
-  const [value, setValue] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
+  const [value, setValue] = useState(end);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    let animFrame: number;
+    const start = performance.now();
+    const startVal = value;
+    const change = end - startVal;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !started.current) {
-          started.current = true;
-          const start = performance.now();
-          const tick = (now: number) => {
-            const elapsed = now - start;
-            const progress = Math.min(elapsed / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            setValue(end * eased);
-            if (progress < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        }
-      },
-      { threshold: 0.3 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    if (Math.abs(change) < 0.01) {
+      setValue(end);
+      return;
+    }
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(startVal + change * eased);
+      if (progress < 1) {
+        animFrame = requestAnimationFrame(tick);
+      }
+    };
+    animFrame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animFrame);
   }, [end, duration]);
 
   const formatted = value.toLocaleString('en-IN', {
@@ -156,7 +153,7 @@ export function CountUp({
   });
 
   return (
-    <span ref={ref} className={className}>
+    <span className={className}>
       {prefix}
       {formatted}
       {suffix}

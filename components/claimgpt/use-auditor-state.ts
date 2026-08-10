@@ -164,8 +164,16 @@ export function useAuditorState() {
   const reloadRecentClaims = async () => {
     try {
       const claims = await fetchRecentClaims();
-      if (claims.length > 0) {
-        setRecentClaims(claims);
+      setRecentClaims(claims);
+      if (claims.length === 0) {
+        setClaimId(null);
+        setRealPreview(null);
+        setFiles([]);
+        setProgress(0);
+        setActiveStage('staged');
+        setIsLiveSessionCompleted(false);
+        setActiveDocumentId(null);
+        setHoveredField(null);
       }
     } catch (err) {
       console.warn("Failed to load recent claims list:", err);
@@ -189,6 +197,12 @@ export function useAuditorState() {
             setIsLiveSessionCompleted(false);
             setIsUploadOpen(false); // Collapse upload panel so workspace & pipeline sit at top
           }
+        } else {
+          setClaimId(null);
+          setRealPreview(null);
+          setFiles([]);
+          setProgress(0);
+          setActiveStage('staged');
         }
       } catch (err) {
         console.warn("Could not load initial claim data on mount:", err);
@@ -200,9 +214,42 @@ export function useAuditorState() {
   /* Remove a claim from local UI state and delete it from Docker backend */
   const deleteClaim = async (idToDelete: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setRecentClaims((prev) => prev.filter((c) => c.id !== idToDelete));
+
+    const remaining = recentClaims.filter((c) => c.id !== idToDelete);
+    setRecentClaims(remaining);
+
+    // If deleting the currently active claim or all claims are deleted
+    if (idToDelete === claimId || remaining.length === 0) {
+      if (remaining.length > 0) {
+        // Automatically switch to the next available claim
+        selectClaim(remaining[0].id);
+      } else {
+        // All claims deleted — reset workspace to clean empty state!
+        setClaimId(null);
+        setRealPreview(null);
+        setFiles([]);
+        setProgress(0);
+        setActiveStage('staged');
+        setIsLiveSessionCompleted(false);
+        setActiveDocumentId(null);
+        setHoveredField(null);
+      }
+    }
+
     try {
       await deleteClaimApi(idToDelete);
+      const remainingClaims = await fetchRecentClaims();
+      setRecentClaims(remainingClaims);
+      if (remainingClaims.length === 0) {
+        setClaimId(null);
+        setRealPreview(null);
+        setFiles([]);
+        setProgress(0);
+        setActiveStage('staged');
+        setIsLiveSessionCompleted(false);
+        setActiveDocumentId(null);
+        setHoveredField(null);
+      }
     } catch (err) {
       console.warn("Backend deletion error:", err);
     }
@@ -257,11 +304,12 @@ export function useAuditorState() {
     ? realPreview.summary.diagnosis
     : realPreview?.parsed_fields?.diagnosis || realPreview?.parsed_fields?.primary_diagnosis;
 
-  const patientName = extractedPatient || (analyzing ? "Processing..." : "Patient Record");
-  const hospitalName = extractedHospital || (analyzing ? "Processing..." : "City Care Hospital");
-  const admissionDate = extractedAdmission || (analyzing ? "Processing..." : "10/06/2026");
-  const dischargeDate = extractedDischarge || (analyzing ? "Processing..." : "14/06/2026");
-  const diagnosis = extractedDiagnosis || (analyzing ? "Processing..." : "Hospital Reimbursement Audit");
+  const hasClaim = Boolean(claimId || realPreview);
+  const patientName = extractedPatient || (analyzing ? "Processing..." : (hasClaim ? "Patient Record" : ""));
+  const hospitalName = extractedHospital || (analyzing ? "Processing..." : (hasClaim ? "City Care Hospital" : ""));
+  const admissionDate = extractedAdmission || (analyzing ? "Processing..." : (hasClaim ? "10/06/2026" : ""));
+  const dischargeDate = extractedDischarge || (analyzing ? "Processing..." : (hasClaim ? "14/06/2026" : ""));
+  const diagnosis = extractedDiagnosis || (analyzing ? "Processing..." : (hasClaim ? "Hospital Reimbursement Audit" : ""));
 
   /* Select file(s) without immediately analyzing — appends new files to pending list */
   const handleSelectFile = (input: any) => {

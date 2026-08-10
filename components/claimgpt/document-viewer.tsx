@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { LINE_ITEMS, formatINR } from '@/lib/claimgpt-data';
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, FileText, ShieldCheck, FileCheck, Stethoscope, FileSearch } from 'lucide-react';
+import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, FileText, ShieldCheck, FileCheck, Stethoscope, FileSearch, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ClaimDocumentPreview } from '@/lib/api-client';
+import { ClaimDocumentPreview, INGRESS_API } from '@/lib/api-client';
 
 interface DocumentViewerProps {
   zoom: number;
@@ -54,18 +54,19 @@ export function DocumentViewer({
   const getDocKey = (doc: ClaimDocumentPreview | undefined, index: number) =>
     doc?.document_id || doc?.id || `doc-${index}`;
 
+  const hasActiveClaim = Boolean(claimId || (documents && documents.length > 0));
   const effectiveDocs: any[] = documents.length > 0
     ? documents
-    : [{
+    : (hasActiveClaim ? [{
       document_id: 'doc_default',
       id: 'doc_default',
-      original_filename: cleanFallback,
-      file_name: cleanFallback,
-      display_title: cleanFallback,
+      original_filename: filename || cleanFallback,
+      file_name: filename || cleanFallback,
+      display_title: filename || cleanFallback,
       doc_type: 'hospital_bill',
       page_count: 1,
       pages: []
-    }];
+    }] : []);
 
   const [selectedDocId, setSelectedDocId] = useState<string | null>(
     activeDocumentId || getDocKey(effectiveDocs[0], 0)
@@ -160,8 +161,12 @@ export function DocumentViewer({
     const isRealClaimId = claimId && claimId !== 'latest' && !claimId.startsWith('CLM-') && !claimId.startsWith('demo-') && claimId.length > 10;
     const activeDocId = activeDoc?.document_id || activeDoc?.id;
 
-    // If claim ID is mock or latest without real document, skip network fetch
-    if (!isRealClaimId && !currentPageUrl && (!activeDocId || activeDocId === 'doc_default')) {
+    // If no active claim or mock claim without real document, clear stale blobUrl and skip fetch
+    if (!hasActiveClaim || (!isRealClaimId && !currentPageUrl && (!activeDocId || activeDocId === 'doc_default'))) {
+      setBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       setLoading(false);
       setError(null);
       return;
@@ -170,9 +175,9 @@ export function DocumentViewer({
     let fileUrl = currentPageUrl || '';
     if (!fileUrl && isRealClaimId) {
       if (activeDocId && activeDocId !== 'doc_default') {
-        fileUrl = `http://localhost:8000/ingress/claims/${claimId}/documents/${activeDocId}/file?view=true`;
+        fileUrl = `${INGRESS_API}/claims/${claimId}/documents/${activeDocId}/file?view=true`;
       } else {
-        fileUrl = `http://localhost:8000/ingress/claims/${claimId}/file?view=true`;
+        fileUrl = `${INGRESS_API}/claims/${claimId}/file?view=true`;
       }
     }
 
@@ -419,7 +424,19 @@ export function DocumentViewer({
               <span>Full Screen View</span>
             </button>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 w-full h-[580px] bg-slate-950 text-slate-100 border border-dashed border-slate-800/80 rounded-b-xl">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-400 shadow-inner mb-1">
+              <FileSearch className="h-8 w-8" />
+            </div>
+            <div className="space-y-1.5 max-w-sm">
+              <h4 className="font-bold text-base text-slate-100">No Claim Uploaded</h4>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Please upload a claim document to check AI audit, OCR extraction, and verification.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

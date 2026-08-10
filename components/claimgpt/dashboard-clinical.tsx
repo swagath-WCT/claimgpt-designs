@@ -53,6 +53,15 @@ import { cn } from '@/lib/utils';
 export function DashboardClinical() {
   const s = useAuditorState();
 
+  const activeProcessingClaim = (s.progress > 0 && s.progress < 100) || s.uploading || s.analyzing ? 1 : 0;
+  const otherProcessingClaims = s.recentClaims.filter((c) => {
+    const st = (c.status || "").toUpperCase();
+    const isFinished = st === "COMPLETED" || st === "VALIDATED" || st === "FINISHED" || st === "REJECTED";
+    return !isFinished && c.id !== s.claimId;
+  }).length;
+
+  const activeQueueCount = activeProcessingClaim + otherProcessingClaims;
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground">
       {/* Header */}
@@ -89,7 +98,7 @@ export function DashboardClinical() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-500 opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-600" />
               </span>
-              Processing Queue: <CountUp end={3} />
+              Processing Queue: <CountUp end={activeQueueCount} />
             </span>
             <LanguageSwitcher variant="light" />
             <NotificationBell variant="clinical" />
@@ -359,19 +368,23 @@ export function DashboardClinical() {
 
                   <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin snap-x">
                     {s.recentClaims.length === 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => s.selectClaim(s.claimId || "")}
-                        className="flex-none snap-start rounded-lg border border-accent bg-accent/10 px-3.5 py-2 text-left shadow-sm min-w-[150px]"
-                      >
-                        <div className="flex items-center justify-between gap-1">
-                          <p className="text-xs font-bold truncate text-foreground">{s.patientName}</p>
-                          <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" />
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                          ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "Active Claim"}
-                        </p>
-                      </button>
+                      s.claimId ? (
+                        <button
+                          type="button"
+                          onClick={() => s.selectClaim(s.claimId || "")}
+                          className="flex-none snap-start rounded-lg border border-accent bg-accent/10 px-3.5 py-2 text-left shadow-sm min-w-[150px]"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="text-xs font-bold truncate text-foreground">{s.patientName || "Patient Record"}</p>
+                            <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            ID: {s.claimId.slice(0, 8)}...
+                          </p>
+                        </button>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic py-1 px-1">No uploaded claims present</p>
+                      )
                     ) : (
                       s.recentClaims.map((claim) => {
                         const isSelected = claim.id === s.claimId;
@@ -381,17 +394,29 @@ export function DashboardClinical() {
                             type="button"
                             onClick={() => s.selectClaim(claim.id)}
                             className={cn(
-                              "flex-none snap-start rounded-lg border px-3.5 py-2 text-left transition-all tap-highlight-none min-w-[150px]",
+                              "flex-none snap-start rounded-lg border px-3.5 py-2 text-left transition-all tap-highlight-none min-w-[170px]",
                               isSelected
                                 ? "border-accent bg-accent/10 shadow-sm font-bold ring-1 ring-accent"
                                 : "border-border bg-slate-50 hover:bg-slate-100"
                             )}
                           >
                             <div className="flex items-center justify-between gap-1">
-                              <p className="text-xs font-bold truncate text-foreground">
+                              <p className="text-xs font-bold truncate text-foreground min-w-0 flex-1">
                                 {claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`}
                               </p>
-                              {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
+                              <div className="flex items-center gap-1.5 flex-none">
+                                {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => s.deleteClaim(claim.id, e as any)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
+                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                                  title="Remove claim"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                               ID: {claim.id.slice(0, 8)}...
