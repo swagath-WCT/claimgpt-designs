@@ -256,6 +256,14 @@ export async function authenticateWithPassword({
     if (backendResponse) {
       const backendData = await backendResponse.json().catch(() => ({}));
       if (backendResponse.ok) {
+        const savedFullName = typeof window !== 'undefined' ? localStorage.getItem('claimgpt_user_name') : null;
+        const resolvedName =
+          backendData?.user?.name ||
+          backendData?.user?.full_name ||
+          (backendData?.user?.first_name ? `${backendData.user.first_name} ${backendData.user.last_name || ''}`.trim() : null) ||
+          savedFullName ||
+          (username.includes('@') ? username.split('@')[0] : username);
+
         const localSession: AuthSession = {
           accessToken: `local-token-${Date.now()}`,
           refreshToken: `local-refresh-${Date.now()}`,
@@ -264,7 +272,7 @@ export async function authenticateWithPassword({
           role,
           user: {
             email: username,
-            name: username.split('@')[0] || username,
+            name: resolvedName,
             preferredUsername: username,
           },
         };

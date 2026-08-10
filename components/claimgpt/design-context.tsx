@@ -27,17 +27,10 @@ const DesignContext = createContext<DesignContextValue | null>(null);
 const STORAGE_KEY = 'claimgpt-design';
 
 export function DesignProvider({ children }: { children: React.ReactNode }) {
-  const [design, setDesignState] = useState<DesignId>('aurora');
+  const [design, setDesignState] = useState<DesignId>('clinical');
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY) as DesignId | null;
-      if (saved && DESIGNS.some((d) => d.id === saved)) {
-        setDesignState(saved);
-      }
-    } catch {
-      // ignore
-    }
+    setDesignState('clinical');
   }, []);
 
   const setDesign = useCallback((id: DesignId) => {

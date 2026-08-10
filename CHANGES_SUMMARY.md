@@ -1,20 +1,33 @@
 # 🚀 ClaimGPT UI & Feature Update Summary
 
-**Branch**: `UI-changes`  
-**Date**: August 6, 2026  
+**Branch**: `latest-UI-changes`  
+**Date**: August 10, 2026  
 **Author**: WaferWire ClaimGPT Engineering Team  
 
 ---
 
 ## 📌 Executive Summary
 
-This document provides a comprehensive overview of all new UI components, dynamic theme enhancements, backend data synchronization fixes, network resiliency layers, registration field extraction fixes, and authentication alignment merged from `main` onto the **`UI-changes`** branch.
+This document provides a comprehensive overview of all new UI components, exclusive Clinical Design locking, backend data synchronization fixes, network resiliency layers, registration field extraction fixes, and authentication alignment.
 
 ---
 
 ## ✨ Key Features & Improvements
 
-### 1. 👤 First & Last Name Registration Profile Extraction Fix
+### 1. 🏥 Exclusive Clinical Design 2 Lock
+* **Files Modified**:
+  * `app/app/page.tsx`
+  * `app/register/page.tsx`
+  * `components/claimgpt/design-context.tsx`
+  * `components/claimgpt/design-switcher.tsx`
+* **Changes**:
+  * **Removed Design 1 (Aurora) and Design 3 (Ledger)** from active routes.
+  * **Locked Design 2 (Clinical)** as the single, exclusive UI design for all routes (`/app`, `/register`).
+  * **Removed the bottom floating switcher bar** for a clean, unified application interface.
+
+---
+
+### 2. 👤 First & Last Name Registration Profile Extraction Fix
 * **Files Modified**:
   * `components/claimgpt/register-clinical.tsx`
   * `components/claimgpt/register-ledger.tsx`
@@ -25,7 +38,7 @@ This document provides a comprehensive overview of all new UI components, dynami
 
 ---
 
-### 2. 🍔 Slide-Out Hamburger Navigation Drawer
+### 3. 🍔 Slide-Out Hamburger Navigation Drawer
 * **Component**: `components/claimgpt/hamburger-menu-drawer.tsx`
 * **Description**: Added a slide-out navigation drawer accessible via the hamburger icon (`Menu`) next to the ClaimGPT logo across all dashboard views.
 * **Included Menu Items**:
@@ -42,21 +55,12 @@ This document provides a comprehensive overview of all new UI components, dynami
 
 ---
 
-### 3. 🎨 Dynamic Theme Variants Across All 3 Dashboards
-* Both the **Hamburger Navigation Drawer** and **User Profile Modal** dynamically adjust their color schemes, glassmorphism overlays, and borders based on the active dashboard design variant:
-  * **Design 1 (`Neon Cyber Glass`)**: Dark Cyber Navy (`#090e1a`) with glowing cyan borders (`#06b6d4`) and electric cyan accents.
-  * **Design 2 (`Clinical Portal`)**: Clean Clinical Medical Portal background (`#ffffff` / `#f8fafc`) with crisp medical teal borders (`#0d9488`).
-  * **Design 3 (`Executive Gold`)**: Royal Executive Navy background (`#060b18`) with amber gold borders (`#f59e0b`).
-
----
-
 ### 4. 🔔 Interactive Notification Bell Popover
 * **Component**: `components/claimgpt/notification-bell.tsx`
 * **Description**: Replaced static header bell icons with an interactive popover component.
 * **Features**:
   * Displays a clean notification status popover upon click:
     🔕 *"No new notifications for now - You're all caught up!"*
-  * Theme-matched across all 3 dashboard header bars.
 
 ---
 
@@ -81,12 +85,14 @@ This document provides a comprehensive overview of all new UI components, dynami
 
 ---
 
-### 7. 🌐 Network Resiliency & Offline Protection
-* **Component**: `lib/api-client.ts`
+### 7. 🌐 Network Resiliency & 400 Bad Request Filter
+* **Components Modified**:
+  * `lib/api-client.ts`
+  * `components/claimgpt/document-viewer.tsx`
+  * `components/claimgpt/document-preview-modal.tsx`
 * **Description**:
-  * Added a `safeFetch` wrapper with abort-timeout error handling around all backend API calls.
-  * Filtered out demo and mock claim IDs (e.g. `demo-003`, `CLM-876638`) from making failing database queries, eliminating `400 Bad Request` console noise.
-  * Protects the app from unhandled network exceptions during low internet or offline connectivity.
+  * Checked claim ID validity before issuing `/claims/latest/file` fetches, eliminating `400 Bad Request` console noise.
+  * Added `safeFetch` wrapper with abort-timeout error handling around backend API calls.
 
 ---
 
@@ -97,17 +103,11 @@ This document provides a comprehensive overview of all new UI components, dynami
 
 ---
 
-## 🗄️ Database Schema Status
-
-* Applied and verified all 120 tables in Docker PostgreSQL database (`docker-postgres-db-1`), including `patient_profiles`, `staff_profiles`, `organizations`, `tpa_providers`, `claims`, `documents`, `parsed_fields`, `validations`, and `audit_logs`.
-
----
-
 ## 📦 How to Test Locally
 
 1. Checkout branch:
    ```bash
-   git checkout UI-changes
+   git checkout latest-UI-changes
    ```
 2. Start the dev server:
    ```bash

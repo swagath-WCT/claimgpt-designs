@@ -157,16 +157,29 @@ export function DocumentViewer({
   // Fetch document bytes inline inside the tab
   useEffect(() => {
     let active = true;
-    const validClaimId = claimId && claimId !== 'latest' ? claimId : 'latest';
+    const isRealClaimId = claimId && claimId !== 'latest' && !claimId.startsWith('CLM-') && !claimId.startsWith('demo-') && claimId.length > 10;
     const activeDocId = activeDoc?.document_id || activeDoc?.id;
 
+    // If claim ID is mock or latest without real document, skip network fetch
+    if (!isRealClaimId && !currentPageUrl && (!activeDocId || activeDocId === 'doc_default')) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let fileUrl = currentPageUrl || '';
-    if (!fileUrl) {
+    if (!fileUrl && isRealClaimId) {
       if (activeDocId && activeDocId !== 'doc_default') {
-        fileUrl = `http://localhost:8000/ingress/claims/${validClaimId}/documents/${activeDocId}/file?view=true`;
+        fileUrl = `http://localhost:8000/ingress/claims/${claimId}/documents/${activeDocId}/file?view=true`;
       } else {
-        fileUrl = `http://localhost:8000/ingress/claims/${validClaimId}/file?view=true`;
+        fileUrl = `http://localhost:8000/ingress/claims/${claimId}/file?view=true`;
       }
+    }
+
+    if (!fileUrl) {
+      setLoading(false);
+      setError(null);
+      return;
     }
 
     setLoading(true);
@@ -188,8 +201,7 @@ export function DocumentViewer({
         });
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("Error creating inline document blob URL:", err);
+      .catch(() => {
         if (active) {
           setError("Failed to render preview. Click 'Full Screen View' below to open the full modal.");
           setLoading(false);

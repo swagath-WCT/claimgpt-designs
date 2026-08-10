@@ -135,6 +135,13 @@ export function DocumentPreviewModal({
     if (!isOpen) return;
     if (currentPageUrl && !imgError) return; // Skip PDF fetch if displaying page images directly
 
+    const isRealClaimId = claimId && claimId !== 'latest' && !claimId.startsWith('CLM-') && !claimId.startsWith('demo-') && claimId.length > 10;
+    if (!isRealClaimId && (!activeDocId || activeDocId === 'doc_default')) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     let active = true;
     setLoading(true);
     setError(null);
@@ -159,8 +166,7 @@ export function DocumentPreviewModal({
         });
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("Error creating document blob URL:", err);
+      .catch(() => {
         if (active) {
           setError("Failed to render document preview inline. Please download the file to view its contents.");
           setLoading(false);
