@@ -462,6 +462,11 @@ export function DashboardClinical() {
                             <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
                             PAUSED — ACTION REQUIRED
                           </span>
+                        ) : s.nameMismatchWarning ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-bold text-red-700 border border-red-500/30 animate-pulse">
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                            PAUSED — NAME MISMATCH
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-500/30">
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -474,7 +479,7 @@ export function DashboardClinical() {
                       </p>
                     </div>
 
-                    {(s.progress >= 100 || s.realPreview) && !s.isDocumentsRequested ? (
+                    {(s.progress >= 100 || s.realPreview) && !s.isDocumentsRequested && !s.nameMismatchWarning ? (
                       <Button onClick={s.openReportModal} className="teal-gradient text-xs font-semibold text-white shadow-md animate-scale-in self-start sm:self-auto">
                         <FileText className="mr-1.5 h-4 w-4" /> View AI Report
                       </Button>
@@ -567,6 +572,35 @@ export function DashboardClinical() {
                       </div>
                     </div>
                   )}
+
+                  {s.nameMismatchWarning && (
+                    <div className="mt-4 p-4 rounded-xl border border-red-200 bg-red-50/50 text-red-900 animate-fade-in text-left">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                        <div className="space-y-1 w-full font-sans">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-red-800">Patient Name Mismatch Detected</h4>
+                          <p className="text-xs text-red-700 leading-relaxed">
+                            {s.nameMismatchWarning}
+                          </p>
+                          <div className="mt-3 flex items-center gap-3">
+                            <label className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm cursor-pointer hover:opacity-90">
+                              <input
+                                type="file"
+                                multiple
+                                hidden
+                                onChange={(e) => {
+                                  if (e.target.files?.length) {
+                                    s.handleUploadFile(Array.from(e.target.files), true);
+                                  }
+                                }}
+                              />
+                              <Upload className="h-3.5 w-3.5" /> Upload Correct ID Proof
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </SpotlightCard>
               </StaggerItem>
 
@@ -600,18 +634,18 @@ export function DashboardClinical() {
                       <div className="border-b border-border bg-slate-50/60 px-5 py-3 flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-foreground">Extracted Claim Data</h3>
                         {s.nameMismatchWarning && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-0.5 text-[10px] font-bold text-amber-800 animate-pulse">
-                            <AlertTriangle className="h-3 w-3 text-amber-600" />
+                          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 border border-red-300 px-2.5 py-0.5 text-[10px] font-bold text-red-800 animate-pulse">
+                            <AlertTriangle className="h-3 w-3 text-red-600" />
                             Name Mismatch
                           </span>
                         )}
                       </div>
                       {s.nameMismatchWarning && (
-                        <div className="mx-5 mt-3 flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 shadow-sm animate-fade-in font-sans">
-                          <AlertTriangle className="h-4 w-4 text-amber-600 flex-none mt-0.5" />
+                        <div className="mx-5 mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-900 shadow-sm animate-fade-in font-sans">
+                          <AlertTriangle className="h-4 w-4 text-red-600 flex-none mt-0.5" />
                           <div>
-                            <h4 className="font-bold text-amber-900">Patient Name Mismatch Detected</h4>
-                            <p className="mt-0.5 text-amber-700 leading-relaxed">{s.nameMismatchWarning}</p>
+                            <h4 className="font-bold text-red-900">Patient Name Mismatch Detected</h4>
+                            <p className="mt-0.5 text-red-700 leading-relaxed">{s.nameMismatchWarning}</p>
                           </div>
                         </div>
                       )}

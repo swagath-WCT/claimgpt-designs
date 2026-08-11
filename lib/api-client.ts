@@ -255,7 +255,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       }
     }
 
-    // 3. Fallback: check if preview endpoint reports a completed/validated status
+    // 3. Fallback: check if preview endpoint reports an explicit completed/validated status
     const prevRes = await safeFetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, {
       cache: "no-store",
       headers: getAuthHeaders(),

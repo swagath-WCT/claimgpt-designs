@@ -359,6 +359,11 @@ export function DashboardAurora() {
                           <AlertTriangle className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
                           <span className="text-amber-400">PAUSED — ACTION REQUIRED</span>
                         </>
+                      ) : s.nameMismatchWarning ? (
+                        <>
+                          <AlertTriangle className="h-3.5 w-3.5 text-rose-400 animate-pulse" />
+                          <span className="text-rose-400">PAUSED — NAME MISMATCH</span>
+                        </>
                       ) : (
                         <>
                           <CheckCircle2 className="h-3.5 w-3.5 text-cyan-400" />
@@ -434,6 +439,35 @@ export function DashboardAurora() {
                                 }}
                               />
                               <Upload className="h-3.5 w-3.5" /> Upload Missing Documents
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {s.nameMismatchWarning && (
+                    <div className="mt-4 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 animate-fade-in text-left">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="h-5 w-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                        <div className="space-y-1 w-full font-sans">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-rose-300">Patient Name Mismatch Detected</h4>
+                          <p className="text-xs text-rose-200/85 leading-relaxed">
+                            {s.nameMismatchWarning}
+                          </p>
+                          <div className="mt-3 flex items-center gap-3">
+                            <label className="bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm cursor-pointer hover:opacity-90">
+                              <input
+                                type="file"
+                                multiple
+                                hidden
+                                onChange={(e) => {
+                                  if (e.target.files?.length) {
+                                    s.handleUploadFile(Array.from(e.target.files), true);
+                                  }
+                                }}
+                              />
+                              <Upload className="h-3.5 w-3.5" /> Upload Correct ID Proof
                             </label>
                           </div>
                         </div>
