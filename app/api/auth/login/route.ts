@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const INGRESS_BASE = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001';
+const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000';
+const INGRESS_BASE = rawBase.endsWith('/ingress') ? rawBase : `${rawBase.replace(/\/+$/, '')}/ingress`;
 
 export async function POST(request: NextRequest) {
   try {

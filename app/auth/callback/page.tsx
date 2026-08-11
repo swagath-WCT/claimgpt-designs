@@ -21,7 +21,7 @@ export default function AuthCallbackPage() {
           throw new Error('The session could not be restored.');
         }
 
-        router.replace(getAuthRedirectPath(currentSession.role));
+        router.replace(getAuthRedirectPath(currentSession));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Authentication failed.');
       }
