@@ -36,11 +36,11 @@ export const LANGUAGES = [
 export type Stage = 'staged' | 'ocr' | 'parsing' | 'coding' | 'scoring';
 
 export const PIPELINE: { key: Stage; label: string }[] = [
-  { key: 'staged', label: 'Claim ID & Attached' },
+  { key: 'staged', label: 'Claim Attached' },
   { key: 'ocr', label: 'OCR Text Capture' },
-  { key: 'parsing', label: 'Layout & Table Parsing' },
-  { key: 'coding', label: 'ICD-10/CPT Coding' },
-  { key: 'scoring', label: 'Compliance Risk Scoring' },
+  { key: 'parsing', label: 'Parsing (LLM agent)' },
+  { key: 'coding', label: 'ICD-10 / CPT Coding' },
+  { key: 'scoring', label: 'Compliance & Risk Scoring' },
 ];
 
 export const STAGED_FILES = [

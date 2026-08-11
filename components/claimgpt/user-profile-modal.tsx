@@ -19,8 +19,8 @@ import {
   IndianRupee,
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
-import { formatINR } from '@/lib/claimgpt-data';
 import { getStoredAuthSession } from '@/lib/auth';
+import { UserAvatar } from '@/components/claimgpt/user-avatar';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -86,6 +86,7 @@ export function UserProfileModal({
     }
   };
 
+
   // Compute family member / patient claim list under this account
   const accountClaims = s.recentClaims.length > 0
     ? s.recentClaims
@@ -95,7 +96,7 @@ export function UserProfileModal({
           patient_name: s.patientName || 'Suresh',
           status: 'COMPLETED',
           created_at: 'Today',
-          total_amount: s.total ? formatINR(s.total) : '₹12,500',
+          total_amount: s.total ? `₹${s.total.toLocaleString('en-IN')}` : '₹12,500',
         },
       ];
 
@@ -183,16 +184,14 @@ export function UserProfileModal({
         <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1 scrollbar-thin">
           
           {/* Main User Banner */}
-          <div className="flex items-start gap-3 pt-0.5">
-            {/* Big Initials Box */}
-            <div className={`flex h-12 w-12 sm:h-14 sm:w-14 flex-none items-center justify-center rounded-2xl text-lg sm:text-xl font-bold tracking-wider ${themeStyles.initialsBox}`}>
-              {initials}
-            </div>
+          <div className="flex items-start gap-3.5 pt-0.5">
+            {/* Colorful Illustrated Avatar */}
+            <UserAvatar name={userName} gender={userMeta.gender} size="xl" className="shadow-md" />
 
-            <div className="min-w-0 flex-1 space-y-1">
+            <div className="min-w-0 flex-1 space-y-1.5">
               <h2 className={`text-base sm:text-lg font-bold tracking-tight truncate ${themeStyles.valueColor}`}>{userName}</h2>
               
-              {/* Badges row */}
+              {/* Badges Row */}
               <div className="flex items-center gap-1.5 flex-wrap text-[10px] sm:text-[11px]">
                 {/* Policy ID with copy */}
                 <button
@@ -204,11 +203,6 @@ export function UserProfileModal({
                   <span>{userMeta.policyNo}</span>
                   {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3 opacity-80" />}
                 </button>
-
-                {/* Gender */}
-                <span className={`rounded-full px-2.5 py-0.5 font-medium ${themeStyles.policyPill}`}>
-                  {userMeta.gender}
-                </span>
 
                 {/* Status tag */}
                 <span className={`rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase ${themeStyles.tagBadge}`}>

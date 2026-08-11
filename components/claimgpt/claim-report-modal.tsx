@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   CheckCircle2,
   Eye,
@@ -16,7 +16,13 @@ import {
   FileCheck,
   Layers,
   CheckSquare,
-  Stethoscope
+  Stethoscope,
+  ArrowLeft,
+  Download,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Maximize2
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR } from '@/lib/claimgpt-data';
@@ -29,6 +35,14 @@ interface ExpenseItem {
 
 export function ClaimReportModal({ s }: { s: AuditorState }) {
   const [loadingPdf, setLoadingPdf] = useState<'tpa' | 'irdai' | null>(null);
+  const [inlinePdf, setInlinePdf] = useState<{
+    url: string;
+    title: string;
+    type: 'tpa' | 'irdai';
+  } | null>(null);
+  const [pdfZoom, setPdfZoom] = useState<number>(1);
+  const pdfTouchStartDistRef = useRef<number>(0);
+  const pdfTouchStartZoomRef = useRef<number>(1);
 
   // Editable Form State
   const [patientName, setPatientName] = useState(s.patientName || 'N/A');
@@ -50,7 +64,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const summary = preview?.summary;
 
   useEffect(() => {
-    if (!s.showReportModal) return;
+    if (!s.showReportModal) {
+      setInlinePdf(null);
+      return;
+    }
 
     setPatientName(summary?.patient_name || s.patientName || 'Patient');
     setHospitalName(summary?.hospital || s.hospitalName || 'Hospital');
@@ -129,22 +146,61 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const tpaUrl = s.tpaPdfViewUrl || s.tpaPdfUrl;
   const irdaUrl = s.irdaPdfViewUrl || s.irdaPdfUrl;
 
-  /* Bulletproof In-Memory PDF Blob Viewer (prevents direct auto-downloads) */
+  /* On-Screen In-Memory PDF Viewer (Opens directly on screen, no new tabs) */
+  const handlePdfTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pdfTouchStartDistRef.current = dist;
+      pdfTouchStartZoomRef.current = pdfZoom;
+    }
+  };
+
+  const handlePdfTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && pdfTouchStartDistRef.current > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = dist / pdfTouchStartDistRef.current;
+      const nextZoom = Math.max(0.6, Math.min(2.5, Math.round(pdfTouchStartZoomRef.current * ratio * 100) / 100));
+      setPdfZoom(nextZoom);
+    }
+  };
+
+  const handlePdfTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length < 2) {
+      pdfTouchStartDistRef.current = 0;
+    }
+  };
+
   const openInlinePdfViewer = async (url: string, type: 'tpa' | 'irdai') => {
     setLoadingPdf(type);
+    setPdfZoom(1);
+    const title = type === 'tpa' ? 'TPA Comprehensive Audit Report' : 'IRDAI Standardized Claim Form';
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error('HTTP error ' + res.status);
       const blob = await res.blob();
       const pdfBlob = new Blob([blob], { type: 'application/pdf' });
       const blobUrl = URL.createObjectURL(pdfBlob);
-      window.open(blobUrl, '_blank');
+      setInlinePdf({ url: blobUrl, title, type });
     } catch (err) {
       console.warn('Direct blob fetch fallback:', err);
-      window.open(url, '_blank');
+      setInlinePdf({ url, title, type });
     } finally {
       setLoadingPdf(null);
     }
+  };
+
+  const closeInlinePdf = () => {
+    if (inlinePdf?.url && inlinePdf.url.startsWith('blob:')) {
+      URL.revokeObjectURL(inlinePdf.url);
+    }
+    setInlinePdf(null);
+    setPdfZoom(1);
   };
 
   const handleSaveDetails = () => {
@@ -624,7 +680,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 type="button"
                 onClick={() => openInlinePdfViewer(tpaUrl, 'tpa')}
                 disabled={loadingPdf === 'tpa'}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
               >
                 {loadingPdf === 'tpa' ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -640,7 +696,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 type="button"
                 onClick={() => openInlinePdfViewer(irdaUrl, 'irdai')}
                 disabled={loadingPdf === 'irdai'}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 disabled:opacity-50 min-h-[44px] px-4 text-xs font-bold text-slate-200 transition-all shadow-md active:scale-95"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 disabled:opacity-50 min-h-[44px] px-4 text-xs font-bold text-slate-200 transition-all shadow-md active:scale-95 cursor-pointer"
               >
                 {loadingPdf === 'irdai' ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -655,13 +711,152 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           <button
             type="button"
             onClick={s.closeReportModal}
-            className="flex-none rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 min-h-[44px] px-4 text-xs font-semibold text-white transition-all"
+            className="flex-none rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 min-h-[44px] px-4 text-xs font-semibold text-white transition-all cursor-pointer"
           >
             Close Report
           </button>
         </div>
 
       </div>
+
+      {/* 8. 📄 ON-SCREEN EMBEDDED PDF VIEWER (Opens directly on screen, NO separate tab opened) */}
+      {inlinePdf ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-2 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-5xl h-[94vh] flex flex-col rounded-2xl border border-white/15 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-4 sm:px-6 py-3 backdrop-blur-md">
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={closeInlinePdf}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+                  title="Back to Audit Report"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-white truncate">
+                      {inlinePdf.title}
+                    </h3>
+                    <span className="hidden sm:inline-flex items-center rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[10px] font-semibold text-teal-300">
+                      ON-SCREEN PREVIEW
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 truncate">Claim ID: {s.claimId || 'N/A'}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Dedicated Mobile & Desktop Zoom Toolbar */}
+                <div className="flex items-center gap-1 bg-slate-800/90 border border-white/10 rounded-xl px-1.5 sm:px-2 py-1">
+                  <button
+                    type="button"
+                    onClick={() => setPdfZoom((z) => Math.max(0.6, Math.round((z - 0.2) * 10) / 10))}
+                    className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPdfZoom(1)}
+                    className="px-1.5 py-0.5 rounded font-mono text-[11px] font-bold text-teal-300 hover:text-white hover:bg-white/10 transition-all"
+                    title="Reset Zoom (100%)"
+                  >
+                    {Math.round(pdfZoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPdfZoom((z) => Math.min(2.5, Math.round((z + 0.2) * 10) / 10))}
+                    className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <a
+                  href={inlinePdf.url}
+                  download={`${inlinePdf.type === 'tpa' ? 'TPA_Report' : 'IRDAI_Form'}_${s.claimId || 'claim'}.pdf`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white transition-all cursor-pointer"
+                  title="Download PDF Copy"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Download</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={closeInlinePdf}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                  aria-label="Close Preview"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Embedded PDF container with mobile touch pinch-to-zoom & pan */}
+            <div
+              className="flex-1 w-full h-full bg-slate-950 relative overflow-auto p-1 sm:p-2 scrollbar-thin"
+              onTouchStart={handlePdfTouchStart}
+              onTouchMove={handlePdfTouchMove}
+              onTouchEnd={handlePdfTouchEnd}
+            >
+              <div
+                className="transition-transform duration-150 origin-top flex justify-center w-full min-h-full"
+                style={{
+                  transform: `scale(${pdfZoom})`,
+                  width: pdfZoom > 1 ? `${pdfZoom * 100}%` : '100%',
+                  minWidth: pdfZoom > 1 ? `${pdfZoom * 100}%` : '100%',
+                }}
+              >
+                <iframe
+                  src={inlinePdf.url}
+                  title={inlinePdf.title}
+                  className="w-full h-full min-h-[78vh] border-0 bg-slate-950 rounded-lg"
+                />
+              </div>
+
+              {/* Floating Mobile Quick-Zoom Bar (Floating Bottom Pill) */}
+              <div className="sm:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-slate-900/95 border border-white/25 px-3 py-1.5 backdrop-blur-xl shadow-2xl z-30">
+                <button
+                  type="button"
+                  onClick={() => setPdfZoom((z) => Math.max(0.6, Math.round((z - 0.2) * 10) / 10))}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfZoom(1)}
+                  className="px-2 py-0.5 rounded-full text-xs font-mono font-bold text-teal-300 hover:text-white"
+                  title="Reset 100%"
+                >
+                  {Math.round(pdfZoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfZoom((z) => Math.min(2.5, Math.round((z + 0.2) * 10) / 10))}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </button>
+                <div className="h-4 w-px bg-white/20 mx-0.5" />
+                <button
+                  type="button"
+                  onClick={() => setPdfZoom((z) => (z >= 1.4 ? 1 : 1.5))}
+                  className="px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-200 bg-white/10 hover:bg-white/20 active:scale-95 transition-all"
+                >
+                  {pdfZoom >= 1.4 ? 'Fit Page' : 'Enlarge (150%)'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

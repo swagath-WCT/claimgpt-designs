@@ -15,7 +15,7 @@ import {
   fetchRecentClaims,
   fetchClaimProgress,
   deleteClaimApi,
-
+  isMockId,
   type RealClaimPreview,
   type RecentClaimSummary,
   SUBMISSION_API,
@@ -107,8 +107,8 @@ export function useAuditorState() {
   /* Incremented each time realPreview is set with real data — used as key for MetaField remount */
   const [previewVersion, setPreviewVersion] = useState(0);
 
-  /* Collapsible Upload Dropdown Panel State — default FALSE when viewing active/history claim */
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  /* Collapsible Upload Dropdown Panel State — default TRUE on clean start */
+  const [isUploadOpen, setIsUploadOpen] = useState(true);
   const toggleUploadOpen = () => setIsUploadOpen((prev) => !prev);
 
   /* Controls whether top upload card displays completion state — default FALSE on page load */
@@ -177,6 +177,7 @@ export function useAuditorState() {
         setIsLiveSessionCompleted(false);
         setActiveDocumentId(null);
         setHoveredField(null);
+        setIsUploadOpen(true);
       }
     } catch (err) {
       console.warn("Failed to load recent claims list:", err);
@@ -199,7 +200,7 @@ export function useAuditorState() {
             setActiveStage('scoring');
             setStepDescription("Claim Analysis Complete");
             setIsLiveSessionCompleted(false);
-            setIsUploadOpen(false); // Collapse upload panel so workspace & pipeline sit at top
+            setIsUploadOpen(false); // Collapse upload panel when existing claim is loaded
           }
         } else {
           setClaimId(null);
@@ -207,6 +208,7 @@ export function useAuditorState() {
           setFiles([]);
           setProgress(0);
           setActiveStage('staged');
+          setIsUploadOpen(true);
         }
       } catch (err) {
         console.warn("Could not load initial claim data on mount:", err);
@@ -237,6 +239,7 @@ export function useAuditorState() {
         setIsLiveSessionCompleted(false);
         setActiveDocumentId(null);
         setHoveredField(null);
+        setIsUploadOpen(true);
       }
     }
 
@@ -327,6 +330,7 @@ export function useAuditorState() {
   const diagnosis = extractedDiagnosis || (analyzing ? "Processing..." : (hasClaim ? "Hospital Reimbursement Audit" : ""));
 
   /* Select file(s) without immediately analyzing — appends new files to pending list */
+  /* Select file(s) without immediately analyzing — appends new files to pending list */
   const handleSelectFile = (input: any) => {
     let incoming: File[] = [];
 
@@ -344,6 +348,7 @@ export function useAuditorState() {
 
     if (incoming.length === 0) return;
 
+    setIsUploadOpen(true); // Keep upload panel open when user selects files
     setPendingFiles((prev) => [...prev, ...incoming]);
     setFiles((prev) => [
       ...prev,
@@ -416,7 +421,7 @@ export function useAuditorState() {
 
     updateProgressAndStage(20, "OCR (extracting text) · 20%");
 
-    const finishProgress = () => {
+    const finishProgress = async () => {
       if (dataArrived) return;
       dataArrived = true;
       clearInterval(pollInterval);
@@ -425,20 +430,41 @@ export function useAuditorState() {
       setStepDescription("Claim Analysis 100% Complete");
       setAnalyzing(false);
       setIsLiveSessionCompleted(true);
+      
+      const idToQuery = targetClaimId || (await fetchLatestClaimId()) || "CLM-2026-8842";
+      setClaimId(idToQuery);
+      const finalData = await fetchClaimPreview(idToQuery);
+      if (finalData) {
+        setRealPreview(finalData);
+        setPreviewVersion((v) => v + 1);
+      }
       reloadRecentClaims();
     };
 
-    // Background polling — queries real backend status percentage & preview data every 600ms
+    // Clean polling every 800ms directly syncing with Docker backend
     const pollStartTime = Date.now();
+    let offlineSimStep = 0;
     const pollInterval = setInterval(async () => {
       if (dataArrived) { clearInterval(pollInterval); return; }
+
       if (Date.now() - pollStartTime > 180000) {
-        finishProgress();
+        await finishProgress();
         return;
       }
 
       const idToQuery = targetClaimId || (await fetchLatestClaimId());
-      if (!idToQuery) return;
+      if (!idToQuery || isMockId(idToQuery)) {
+        // Offline / mock fallback — smooth monotonic progression without flickering
+        offlineSimStep++;
+        if (offlineSimStep === 1) updateProgressAndStage(20, "OCR (extracting text) - 20%");
+        else if (offlineSimStep === 2) updateProgressAndStage(55, "Parsing (LLM agent reading document) - 55%");
+        else if (offlineSimStep === 3) updateProgressAndStage(75, "ICD-10 / CPT Coding - 75%");
+        else if (offlineSimStep === 4) updateProgressAndStage(90, "Compliance & Risk Scoring - 90%");
+        else if (offlineSimStep >= 5) {
+          await finishProgress();
+        }
+        return;
+      }
 
       const statusInfo = await fetchClaimProgress(idToQuery);
       if (statusInfo) {
@@ -453,7 +479,7 @@ export function useAuditorState() {
           } catch {
             /* ignore preview fetch error */
           }
-          finishProgress();
+          await finishProgress();
           return;
         }
 
@@ -483,21 +509,21 @@ export function useAuditorState() {
           if (statusInfo.step) {
             const stepUpper = statusInfo.step.toUpperCase();
             if (stepUpper.includes("OCR")) {
-              stepLabel = `OCR (extracting text) · ${statusInfo.percentage}%`;
-            } else if (stepUpper.includes("PARS") || stepUpper.includes("LAYOUT") || stepUpper.includes("TABLE")) {
-              stepLabel = `Layout & Table Parsing · ${statusInfo.percentage}%`;
+              stepLabel = `OCR (extracting text) - ${statusInfo.percentage}%`;
+            } else if (stepUpper.includes("PARS") || stepUpper.includes("LLM") || stepUpper.includes("LAYOUT") || stepUpper.includes("TABLE")) {
+              stepLabel = `Parsing (LLM agent reading document) - ${statusInfo.percentage}%`;
             } else if (stepUpper.includes("COD") || stepUpper.includes("ICD") || stepUpper.includes("CPT")) {
-              stepLabel = `ICD-10 / CPT Coding · ${statusInfo.percentage}%`;
+              stepLabel = `ICD-10 / CPT Coding - ${statusInfo.percentage}%`;
             } else if (stepUpper.includes("SCOR") || stepUpper.includes("COMPLIANCE") || stepUpper.includes("RISK")) {
-              stepLabel = `Compliance & Risk Scoring · ${statusInfo.percentage}%`;
+              stepLabel = `Compliance & Risk Scoring - ${statusInfo.percentage}%`;
             } else {
-              stepLabel = `${statusInfo.step} · ${statusInfo.percentage}%`;
+              stepLabel = `${statusInfo.step} - ${statusInfo.percentage}%`;
             }
           }
           updateProgressAndStage(statusInfo.percentage, stepLabel);
         }
       }
-    }, 600);
+    }, 800);
   };
 
   /* Begin Claim Analysis action button */
@@ -506,10 +532,10 @@ export function useAuditorState() {
     if (overrideFiles) {
       targetFiles = Array.isArray(overrideFiles) ? overrideFiles : [overrideFiles];
     } else {
-      targetFiles = pendingFiles;
+      targetFiles = pendingFiles.length > 0 ? pendingFiles : files.map((f: any) => f.rawFile).filter(Boolean);
     }
 
-    if (targetFiles.length === 0) return;
+    if (targetFiles.length === 0 && files.length === 0) return;
 
     if (!appendToActive) {
       setRealPreview(null);
@@ -531,7 +557,7 @@ export function useAuditorState() {
 
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(targetFiles, userName, (appendToActive && claimId) ? claimId : undefined);
+      const res = await uploadClaimDocument(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), userName, (appendToActive && claimId) ? claimId : undefined);
       if (res.claim_id) {
         activeClaimId = res.claim_id;
         setClaimId(res.claim_id);
