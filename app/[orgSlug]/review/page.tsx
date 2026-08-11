@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthRedirectPath, getStoredAuthSession } from '@/lib/auth';
+import { DashboardOrgReview } from '@/components/claimgpt/dashboard-org-review';
 
 export default function OrgReviewPage({ params }: { params: { orgSlug: string } }) {
   const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
     const session = getStoredAuthSession();
@@ -15,18 +17,22 @@ export default function OrgReviewPage({ params }: { params: { orgSlug: string } 
       return;
     }
 
-    // Wrong role, or a reviewer trying to view a different org's dashboard —
-    // send them back to wherever their own session actually belongs.
-    if (session.accountRole !== 'reviewer' || session.organizationSlug !== params.orgSlug) {
+    const isAllowedRole = session.accountRole === 'admin' || session.accountRole === 'reviewer' || session.role === 'tpa';
+    if (!isAllowedRole || (session.organizationSlug && session.organizationSlug !== params.orgSlug)) {
       router.replace(getAuthRedirectPath(session));
+      return;
     }
+
+    setIsAuthorized(true);
   }, [router, params.orgSlug]);
 
-  // TODO: swap in the real reviewer dashboard component once designed,
-  // e.g. <DashboardOrgReview orgSlug={params.orgSlug} />
-  return (
-    <div className="flex min-h-screen items-center justify-center">
-      <p className="text-sm text-muted-foreground">Loading review dashboard for {params.orgSlug}…</p>
-    </div>
-  );
-}
+  if (!isAuthorized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100/80">
+        <p className="text-sm text-slate-500">Verifying reviewer session authority for {params.orgSlug}…</p>
+      </div>
+    );
+  }
+
+  return <DashboardOrgReview orgSlug={params.orgSlug} />;
+}

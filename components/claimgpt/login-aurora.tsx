@@ -12,7 +12,7 @@ import {
   MapPin,
   ShieldCheck,
 } from 'lucide-react';
-import { authenticateWithPassword, getAuthErrorField, type AuthErrorField } from '@/lib/auth';
+import { authenticateWithPassword, getAuthErrorField, getAuthRedirectPath, type AuthErrorField } from '@/lib/auth';
 import { BrandPanel } from '@/components/claimgpt/brand-panel';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { SSOButton } from '@/components/claimgpt/sso-button';
@@ -59,7 +59,7 @@ export function LoginAurora() {
     try {
       const session = await authenticateWithPassword({ username: identifier, password, role });
       if (session) {
-        router.replace('/app');
+        router.replace(getAuthRedirectPath(session));
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign in.';
@@ -226,22 +226,13 @@ export function LoginAurora() {
 
             <StaggerItem index={3} className="mt-8">
               <div className="text-center">
-                {role === 'patient' ? (
+                {role === 'patient' && (
                   <Link
                     href="/register"
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-accent"
                   >
                     New to ClaimGPT?
                     <span className="font-semibold text-accent">Create an account</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-accent" />
-                  </Link>
-                ) : (
-                  <Link
-                    href="/register/organization"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-accent"
-                  >
-                    New to ClaimGPT?
-                    <span className="font-semibold text-accent">Add an organization</span>
                     <ArrowRight className="h-3.5 w-3.5 text-accent" />
                   </Link>
                 )}

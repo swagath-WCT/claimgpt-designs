@@ -270,10 +270,12 @@ export async function authenticateWithPassword({
         const accountRole = (
           backendData.role === 'admin' || backendData.role === 'reviewer' || backendData.role === 'submitter'
             ? backendData.role
-            : role === 'patient' ? 'submitter' : undefined
+            : role === 'patient' ? 'submitter' : 'admin'
         ) as AuthSession['accountRole'];
-        const organization = typeof backendData.organization === 'string' ? backendData.organization : undefined;
-        const organizationSlug = typeof backendData.organization_slug === 'string' ? backendData.organization_slug : undefined;
+        const organization = typeof backendData.organization === 'string' ? backendData.organization : (role === 'tpa' ? 'Apollo Health' : undefined);
+        const organizationSlug = typeof backendData.organization_slug === 'string'
+          ? backendData.organization_slug
+          : (organization ? organization.toLowerCase().replace(/[^a-z0-9]+/g, '-') : (role === 'tpa' ? 'apollo-health' : undefined));
 
         const localSession: AuthSession = {
           accessToken: `local-token-${Date.now()}`,
@@ -376,12 +378,18 @@ export async function authenticateWithPassword({
   }
 
   // Fallback local session when skipping Keycloak/Entra authentication
+  const defaultOrgSlug = username.includes('@') ? username.split('@')[1].split('.')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'apollo-health';
+  const defaultOrgName = defaultOrgSlug.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+
   const localSession: AuthSession = {
     accessToken: `local-token-${Date.now()}`,
     refreshToken: `local-refresh-${Date.now()}`,
     idToken: `local-id-${Date.now()}`,
     expiresAt: Math.floor(Date.now() / 1000) + 86400,
     role,
+    accountRole: role === 'tpa' ? 'admin' : 'submitter',
+    organization: role === 'tpa' ? defaultOrgName : undefined,
+    organizationSlug: role === 'tpa' ? defaultOrgSlug : undefined,
     user: {
       email: username,
       name: username.split('@')[0] || username,
@@ -476,15 +484,16 @@ export async function completeAuthCallback() {
   return session;
 }
 
-export function getAuthRedirectPath(session: Pick<AuthSession, 'accountRole' | 'organizationSlug'> | null | undefined) {
+export function getAuthRedirectPath(session: Pick<AuthSession, 'role' | 'accountRole' | 'organization' | 'organizationSlug'> | null | undefined) {
   if (!session) {
     return '/app';
   }
-  if (session.accountRole === 'admin' && session.organizationSlug) {
-    return `/${session.organizationSlug}/admin`;
+  const slug = session.organizationSlug || (session.organization ? session.organization.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'apollo-health');
+  if (session.accountRole === 'admin' || session.role === 'tpa') {
+    return `/${slug}/admin`;
   }
-  if (session.accountRole === 'reviewer' && session.organizationSlug) {
-    return `/${session.organizationSlug}/review`;
+  if (session.accountRole === 'reviewer') {
+    return `/${slug}/review`;
   }
   return '/app';
 }

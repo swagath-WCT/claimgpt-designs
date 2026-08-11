@@ -226,22 +226,13 @@ export function LoginClinical() {
 
             <StaggerItem index={3} className="mt-8">
               <div className="text-center">
-                {role === 'patient' ? (
+                {role === 'patient' && (
                   <Link
                     href="/register"
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-accent"
                   >
                     New to ClaimGPT?
                     <span className="font-semibold text-accent">Create an account</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-accent" />
-                  </Link>
-                ) : (
-                  <Link
-                    href="/register/organization"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-accent"
-                  >
-                    New to ClaimGPT?
-                    <span className="font-semibold text-accent">Add an organization</span>
                     <ArrowRight className="h-3.5 w-3.5 text-accent" />
                   </Link>
                 )}
