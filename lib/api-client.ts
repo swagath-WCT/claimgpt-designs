@@ -294,11 +294,16 @@ export async function fetchClaimPreview(claimId: string): Promise<RealClaimPrevi
 /**
  * Fetch most recently processed claim ID safely
  */
-export async function fetchLatestClaimId(): Promise<string | null> {
+export async function fetchLatestClaimId(patientId?: string): Promise<string | null> {
   try {
-    let res = await safeFetch(`${INGRESS_API}/claims?limit=10&t=${Date.now()}`, { cache: "no-store" }, 3000);
+    const params = new URLSearchParams({ limit: "10", t: Date.now().toString() });
+    if (patientId) {
+      params.append("patient_id", patientId);
+    }
+    const url = `${INGRESS_API}/claims?${params.toString()}`;
+    let res = await safeFetch(url, { cache: "no-store" }, 3000);
     if (!res || !res.ok) {
-      res = await safeFetch(`${INGRESS_API}/claims/?limit=10&t=${Date.now()}`, { cache: "no-store" }, 3000);
+      res = await safeFetch(`${INGRESS_API}/claims/?${params.toString()}`, { cache: "no-store" }, 3000);
     }
     if (!res || !res.ok) return null;
     const data = await res.json();
@@ -315,11 +320,16 @@ export async function fetchLatestClaimId(): Promise<string | null> {
 /**
  * Fetch list of recent claims safely
  */
-export async function fetchRecentClaims(): Promise<RecentClaimSummary[]> {
+export async function fetchRecentClaims(patientId?: string): Promise<RecentClaimSummary[]> {
   try {
-    let res = await safeFetch(`${INGRESS_API}/claims?limit=10&t=${Date.now()}`, { cache: "no-store" }, 3000);
+    const params = new URLSearchParams({ limit: "10", t: Date.now().toString() });
+    if (patientId) {
+      params.append("patient_id", patientId);
+    }
+    const url = `${INGRESS_API}/claims?${params.toString()}`;
+    let res = await safeFetch(url, { cache: "no-store" }, 3000);
     if (!res || !res.ok) {
-      res = await safeFetch(`${INGRESS_API}/claims/?limit=10&t=${Date.now()}`, { cache: "no-store" }, 3000);
+      res = await safeFetch(`${INGRESS_API}/claims/?${params.toString()}`, { cache: "no-store" }, 3000);
     }
     if (!res || !res.ok) return [];
     const data = await res.json();

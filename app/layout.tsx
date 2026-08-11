@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import { DesignProvider } from '@/components/claimgpt/design-context';
 import { DesignSwitcher } from '@/components/claimgpt/design-switcher';
+import { Toaster } from '@/components/ui/toaster';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -33,6 +34,7 @@ export default function RootLayout({
         <DesignProvider>
           {children}
           <DesignSwitcher />
+          <Toaster />
         </DesignProvider>
       </body>
     </html>

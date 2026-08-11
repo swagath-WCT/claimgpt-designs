@@ -21,6 +21,7 @@ import {
   SUBMISSION_API,
 } from '@/lib/api-client';
 import { getStoredAuthSession } from '@/lib/auth';
+import { toast } from '@/hooks/use-toast';
 
 /* Utility function for robust smooth scrolling across all devices */
 export function scrollToPipeline() {
@@ -166,7 +167,15 @@ export function useAuditorState() {
   /* Helper to fetch list of past claims from backend */
   const reloadRecentClaims = async () => {
     try {
-      const claims = await fetchRecentClaims();
+      let patientId: string | undefined = undefined;
+      const session = getStoredAuthSession();
+      if (session?.user?.name) {
+        patientId = session.user.name;
+      } else {
+        const savedName = localStorage.getItem('claimgpt_user_name');
+        if (savedName) patientId = savedName;
+      }
+      const claims = await fetchRecentClaims(patientId);
       setRecentClaims(claims);
       if (claims.length === 0) {
         setClaimId(null);
@@ -187,8 +196,16 @@ export function useAuditorState() {
   useEffect(() => {
     async function loadInitial() {
       try {
+        let patientId: string | undefined = undefined;
+        const session = getStoredAuthSession();
+        if (session?.user?.name) {
+          patientId = session.user.name;
+        } else {
+          const savedName = localStorage.getItem('claimgpt_user_name');
+          if (savedName) patientId = savedName;
+        }
         await reloadRecentClaims();
-        const latestId = await fetchLatestClaimId();
+        const latestId = await fetchLatestClaimId(patientId);
         if (latestId) {
           const prevData = await fetchClaimPreview(latestId);
           if (prevData) {
@@ -212,7 +229,7 @@ export function useAuditorState() {
       }
     }
     loadInitial();
-  }, []);
+  }, [userName]);
 
   /* Remove a claim from local UI state and delete it from Docker backend */
   const deleteClaim = async (idToDelete: string, e?: React.MouseEvent) => {
@@ -241,7 +258,15 @@ export function useAuditorState() {
 
     try {
       await deleteClaimApi(idToDelete);
-      const remainingClaims = await fetchRecentClaims();
+      let patientId: string | undefined = undefined;
+      const session = getStoredAuthSession();
+      if (session?.user?.name) {
+        patientId = session.user.name;
+      } else {
+        const savedName = localStorage.getItem('claimgpt_user_name');
+        if (savedName) patientId = savedName;
+      }
+      const remainingClaims = await fetchRecentClaims(patientId);
       setRecentClaims(remainingClaims);
       if (remainingClaims.length === 0) {
         setClaimId(null);
@@ -542,6 +567,13 @@ export function useAuditorState() {
         activeClaimId = res.claim_id;
         setClaimId(res.claim_id);
 
+        if (res.status === "COMPLETED" || res.task_id === null) {
+          toast({
+            title: "Duplicate Document Detected",
+            description: "This exact document has already been processed. Displaying the existing completed claim report.",
+          });
+        }
+
         // Try immediate prefetch for this claim ID
         const initialPreview = await fetchClaimPreview(res.claim_id);
         if (initialPreview) {
@@ -605,30 +637,7 @@ export function useAuditorState() {
 
   /* Detect Patient Name Mismatch warning from backend preview */
   const nameMismatchWarning = useMemo(() => {
-    if (!realPreview) return null;
-
-    // Direct status check: if claim is in MANUAL_REVIEW_REQUIRED status, it has a name mismatch
-    const statusStr = (realPreview.status || "").toUpperCase();
-    if (statusStr === "MANUAL_REVIEW_REQUIRED") {
-      const patName = realPreview.summary?.patient_name || (realPreview as any).parsed_fields?.patient_name || "the patient";
-      return `Patient Name Mismatch: The name on the uploaded Identity Proof does not match the patient name (${patName}). Please upload the correct ID proof.`;
-    }
-
-    const validations = (realPreview as any).validations || [];
-    const nameVal = validations.find((v: any) =>
-      (v.name || v.rule_name || v.rule || '').toLowerCase().includes('name') &&
-      (v.passed === false || v.status === 'failed' || v.status === 'warning' || (v.message || v.warning || '').toLowerCase().includes('mismatch'))
-    );
-    if (nameVal) {
-      const msg = nameVal.message || nameVal.warning || nameVal.description;
-      return msg || "Patient Name Mismatch: Insured name differs from Patient name on bill";
-    }
-    const insured = (realPreview?.summary as any)?.insured_name || (realPreview as any)?.parsed_fields?.insured_name;
-    const patient = realPreview?.summary?.patient_name || (realPreview as any)?.parsed_fields?.patient_name;
-    if (insured && patient && insured.trim().toLowerCase() !== patient.trim().toLowerCase()) {
-      return `Patient Name Mismatch: Insured '${insured}' vs Patient '${patient}'`;
-    }
-    return null;
+    return null; // Disabled as requested to support family/third-party uploads
   }, [realPreview]);
 
   return {
