@@ -15,6 +15,7 @@ import {
   fetchRecentClaims,
   fetchClaimProgress,
   deleteClaimApi,
+  deleteClaimDocumentApi,
   isMockId,
   type RealClaimPreview,
   type RecentClaimSummary,
@@ -76,8 +77,41 @@ export function useAuditorState() {
         if (savedName) setUserName(savedName);
         if (savedEmail) setUserEmail(savedEmail);
       }
+    } catch (err) {
+      /* ignore */
+    }
+  };
+
+  /* Remove a specific document from a claim */
+  const deleteDocument = async (claimIdTarget: string, docIdTarget: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+
+    // Optimistically update recentClaims documents
+    setRecentClaims((prev) =>
+      prev.map((c) => {
+        if (c.id === claimIdTarget) {
+          const nextDocs = (c.documents || []).filter((d) => d.id !== docIdTarget && d.file_name !== docIdTarget);
+          return { ...c, documents: nextDocs };
+        }
+        return c;
+      })
+    );
+
+    // If deleting from currently active claim, update staged files & preview documents
+    if (claimIdTarget === claimId) {
+      setFiles((prev) => prev.filter((f, idx) => `f-${idx}` !== docIdTarget && f.name !== docIdTarget));
+      if (realPreview && realPreview.documents) {
+        setRealPreview({
+          ...realPreview,
+          documents: realPreview.documents.filter((d) => d.id !== docIdTarget && d.original_filename !== docIdTarget),
+        });
+      }
+    }
+
+    try {
+      await deleteClaimDocumentApi(claimIdTarget, docIdTarget);
     } catch {
-      /* ignore localStorage error */
+      /* ignore network error */
     }
   };
 
@@ -706,6 +740,7 @@ export function useAuditorState() {
     recentClaims,
     selectClaim,
     deleteClaim,
+    deleteDocument,
     reloadRecentClaims,
     isDocumentsRequested,
     missingGroups,

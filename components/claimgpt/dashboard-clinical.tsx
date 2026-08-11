@@ -235,10 +235,10 @@ export function DashboardClinical() {
                                     setClaimToDelete({ id: claim.id, name: claimName });
                                   }
                                 }}
-                                className="text-slate-400 hover:text-slate-700 font-bold px-1 text-xs cursor-pointer"
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                 title="Delete claim"
                               >
-                                ✕
+                                <Trash2 className="h-3.5 w-3.5" />
                               </span>
                             </div>
                           </div>
@@ -271,7 +271,17 @@ export function DashboardClinical() {
                                     )}
                                     <span className="truncate max-w-[130px]">{d.file_name}</span>
                                   </div>
-                                  <span className="text-slate-400 hover:text-slate-600 text-xs flex-none ml-1">✕</span>
+                                  <button
+                                    type="button"
+                                    title={`Remove ${d.file_name}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      s.deleteDocument(claim.id, d.id || d.file_name, e);
+                                    }}
+                                    className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded p-0.5 text-xs flex-none ml-1 cursor-pointer transition-colors"
+                                  >
+                                    ✕
+                                  </button>
                                 </div>
                               ))}
                             </div>

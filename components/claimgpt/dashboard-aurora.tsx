@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import {
   AlertTriangle,
   Bell,
@@ -50,6 +52,7 @@ import { cn } from '@/lib/utils';
 
 export function DashboardAurora() {
   const s = useAuditorState();
+  const [claimToDelete, setClaimToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const hasActiveClaim = Boolean(
     s.claimId ||
@@ -206,9 +209,17 @@ export function DashboardAurora() {
                               <span
                                 role="button"
                                 tabIndex={0}
-                                onClick={(e) => s.deleteClaim(claim.id, e as any)}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); s.deleteClaim(claim.id); } }}
-                                className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClaimToDelete({ id: claim.id, name: claimName });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.stopPropagation();
+                                    setClaimToDelete({ id: claim.id, name: claimName });
+                                  }
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                                 title="Delete claim"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -222,14 +233,25 @@ export function DashboardAurora() {
                               {docs.map((d: any) => (
                                 <span
                                   key={d.id || d.file_name}
-                                  className="inline-flex items-center gap-1 rounded-md border border-cyan-500/20 bg-slate-900/80 px-2 py-0.5 text-[10px] font-medium text-cyan-200"
+                                  className="inline-flex items-center gap-1.5 rounded-md border border-cyan-500/20 bg-slate-900/80 px-2 py-0.5 text-[10px] font-medium text-cyan-200"
                                 >
                                   {d.file_name.endsWith('.pdf') ? (
                                     <FileText className="h-3 w-3 text-cyan-400 flex-none" />
                                   ) : (
                                     <ImageIcon className="h-3 w-3 text-purple-400 flex-none" />
                                   )}
-                                  <span className="truncate max-w-[120px]">{d.file_name}</span>
+                                  <span className="truncate max-w-[110px]">{d.file_name}</span>
+                                  <button
+                                    type="button"
+                                    title={`Remove ${d.file_name}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      s.deleteDocument(claim.id, d.id || d.file_name, e);
+                                    }}
+                                    className="text-slate-400 hover:text-rose-400 text-[10px] ml-0.5 cursor-pointer"
+                                  >
+                                    ✕
+                                  </button>
                                 </span>
                               ))}
                             </div>
@@ -723,6 +745,47 @@ export function DashboardAurora() {
 
       {/* Slide-out Sidebar Navigation Drawer */}
       <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="neon" />
+
+      {/* Delete Claim Confirmation Modal */}
+      {claimToDelete && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in font-sans">
+          <div className="w-full max-w-sm rounded-2xl border border-cyan-500/30 bg-slate-950 p-5 shadow-2xl shadow-cyan-500/10 animate-scale-up">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete Claim?</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Are you sure you want to remove <span className="font-semibold text-cyan-300">{claimToDelete.name}</span>?</p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setClaimToDelete(null)}
+                className="rounded-xl border-white/10 text-slate-300 hover:bg-slate-900 font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  s.deleteClaim(claimToDelete.id);
+                  setClaimToDelete(null);
+                }}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/30"
+              >
+                Confirm Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

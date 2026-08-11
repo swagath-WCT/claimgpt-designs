@@ -411,6 +411,21 @@ export async function deleteClaimApi(claimId: string): Promise<boolean> {
 }
 
 /**
+ * Delete a specific document from a claim safely from backend
+ */
+export async function deleteClaimDocumentApi(claimId: string, docId: string): Promise<boolean> {
+  if (isMockId(claimId)) return true;
+  try {
+    const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/documents/${docId}`, {
+      method: "DELETE",
+    }, 4000);
+    return Boolean(res && res.ok);
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
  * Register/authenticate user safely in backend audit log
  */
 export async function syncUserToBackend(name: string, email: string): Promise<void> {
