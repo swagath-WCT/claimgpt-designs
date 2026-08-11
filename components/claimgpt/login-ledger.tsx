@@ -17,6 +17,7 @@ import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { SSOButton } from '@/components/claimgpt/sso-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { authenticateWithPassword, getAuthErrorField, getAuthRedirectPath, type AuthErrorField } from '@/lib/auth';
 import { FEATURES, TRUST_BADGES } from '@/lib/claimgpt-data';
 import {
   AuroraBackground,
@@ -27,7 +28,6 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 import { cn } from '@/lib/utils';
-import { authenticateWithPassword, getAuthErrorField, type AuthErrorField } from '@/lib/auth';
 
 type Role = 'patient' | 'tpa';
 
@@ -59,7 +59,7 @@ export function LoginLedger() {
     try {
       const session = await authenticateWithPassword({ username: identifier, password, role });
       if (session) {
-        router.replace('/app');
+        router.replace(getAuthRedirectPath(session));
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to sign in.';
@@ -286,12 +286,14 @@ export function LoginLedger() {
               <SSOButton provider="saml" variant="dark" />
             </div>
 
-            <p className="mt-6 text-center text-sm text-slate-400">
-              New to ClaimGPT?{' '}
-              <Link href="/register" className="font-semibold text-teal-300 hover:underline">
-                Create an account
-              </Link>
-            </p>
+            {role === 'patient' && (
+              <p className="mt-6 text-center text-sm text-slate-400">
+                New to ClaimGPT?{' '}
+                <Link href="/register" className="font-semibold text-teal-300 hover:underline">
+                  Create an account
+                </Link>
+              </p>
+            )}
           </SpotlightCard>
         </StaggerItem>
       </div>
