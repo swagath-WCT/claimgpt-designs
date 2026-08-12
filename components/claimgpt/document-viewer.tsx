@@ -13,7 +13,9 @@ import {
   Upload,
   Eye,
   EyeOff,
-  Maximize2
+  Maximize2,
+  Loader2,
+  Scan
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ClaimDocumentPreview, INGRESS_API } from '@/lib/api-client';
@@ -123,10 +125,14 @@ export function DocumentViewer({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset doc revealed state whenever a different claim or file is selected
+  // Reset doc revealed state ONLY when a completely different claim is selected
+  const lastClaimIdRef = useRef<string | null | undefined>(claimId);
   useEffect(() => {
-    setIsDocRevealed(false);
-  }, [claimId, fileObj?.name]);
+    if (lastClaimIdRef.current && claimId && lastClaimIdRef.current !== claimId) {
+      setIsDocRevealed(false);
+    }
+    lastClaimIdRef.current = claimId;
+  }, [claimId]);
 
   // Serialize document IDs to avoid resetting tab selections during parent background polling ticks
   const serializedDocIds = effectiveDocs.map((d, index) => getDocKey(d, index)).join(',');
@@ -148,7 +154,7 @@ export function DocumentViewer({
   const touchStartDistRef = useRef<number>(0);
   const touchStartZoomRef = useRef<number>(1);
 
-  // Mouse wheel zoom (Ctrl + Mouse Wheel) and trackpad pinch
+  // Mouse wheel zoom (Ctrl + Mouse Wheel) and native non-passive touch pinch
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -163,34 +169,46 @@ export function DocumentViewer({
       }
     };
 
+    const handleNativeTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        touchStartDistRef.current = dist;
+        touchStartZoomRef.current = zoom;
+      }
+    };
+
+    const handleNativeTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && touchStartDistRef.current > 0) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = dist / touchStartDistRef.current;
+        setZoom(Math.max(0.5, Math.min(2.5, Math.round(touchStartZoomRef.current * factor * 100) / 100)));
+      }
+    };
+
+    const handleNativeTouchEnd = () => {
+      touchStartDistRef.current = 0;
+    };
+
     el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('touchstart', handleNativeTouchStart, { passive: false });
+    el.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    el.addEventListener('touchend', handleNativeTouchEnd);
+
     return () => {
       el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchstart', handleNativeTouchStart);
+      el.removeEventListener('touchmove', handleNativeTouchMove);
+      el.removeEventListener('touchend', handleNativeTouchEnd);
     };
   }, [setZoom, zoom]);
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      touchStartDistRef.current = dist;
-      touchStartZoomRef.current = zoom;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2 && touchStartDistRef.current > 0) {
-      e.preventDefault();
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const factor = dist / touchStartDistRef.current;
-      setZoom(Math.max(0.5, Math.min(2.5, touchStartZoomRef.current * factor)));
-    }
-  };
 
   const handleTouchEnd = () => {
     touchStartDistRef.current = 0;
@@ -328,7 +346,7 @@ export function DocumentViewer({
   };
 
   return (
-    <div className={cn('flex flex-col', className)}>
+    <div className={cn('flex flex-col h-full min-h-[480px] max-h-[640px]', className)}>
       {/* Multi-Document Carousel Bar */}
       <div
         className={cn(
@@ -408,21 +426,21 @@ export function DocumentViewer({
             </button>
           </div>
 
-          {/* Zoom Controls & Hide Doc Toggle */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
+          {/* Zoom Controls, Full Screen & Hide Doc Toggle */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-0.5">
               <button
                 type="button"
                 onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
                 className={cn(
                   'p-1.5 rounded-lg transition-colors cursor-pointer',
-                  dark ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+                  dark ? 'hover:bg-white/10 text-slate-300' : 'hover:bg-slate-200 text-slate-600'
                 )}
                 title="Zoom Out"
               >
-                <ZoomOut className="h-4 w-4" />
+                <ZoomOut className="h-3.5 w-3.5" />
               </button>
-              <span className="w-11 text-center font-mono font-medium text-[11px]">
+              <span className="w-10 text-center font-mono font-medium text-[11px]">
                 {Math.round(zoom * 100)}%
               </span>
               <button
@@ -430,27 +448,51 @@ export function DocumentViewer({
                 onClick={() => setZoom(Math.min(2.5, zoom + 0.1))}
                 className={cn(
                   'p-1.5 rounded-lg transition-colors cursor-pointer',
-                  dark ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+                  dark ? 'hover:bg-white/10 text-slate-300' : 'hover:bg-slate-200 text-slate-600'
                 )}
                 title="Zoom In"
               >
-                <ZoomIn className="h-4 w-4" />
+                <ZoomIn className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom(1)}
+                className={cn(
+                  'p-1.5 rounded-lg transition-colors cursor-pointer ml-0.5',
+                  dark ? 'hover:bg-white/10 text-slate-300' : 'hover:bg-slate-200 text-slate-600'
+                )}
+                title="Fit to Screen (100%)"
+                aria-label="Fit to Screen"
+              >
+                <Scan className="h-3.5 w-3.5" />
               </button>
             </div>
+
+            {onOpenDocModal && (
+              <button
+                type="button"
+                onClick={onOpenDocModal}
+                className="p-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-colors cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center"
+                title="Full Screen Preview"
+                aria-label="Full Screen Preview"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            )}
 
             <button
               type="button"
               onClick={() => setIsDocRevealed(false)}
               className={cn(
-                'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer',
+                'p-1.5 rounded-lg border transition-colors cursor-pointer flex items-center justify-center',
                 dark
                   ? 'border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200'
                   : 'border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700'
               )}
               title="Hide Document Preview"
+              aria-label="Hide Document Preview"
             >
-              <EyeOff className="h-3 w-3" />
-              <span>Hide Doc</span>
+              <EyeOff className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -459,7 +501,7 @@ export function DocumentViewer({
       {/* Document Preview Canvas Area */}
       <div
         className={cn(
-          'w-full relative flex-1 flex flex-col items-center justify-center overflow-hidden transition-colors min-h-[500px]',
+          'w-full relative flex-1 flex flex-col items-center justify-center overflow-hidden transition-colors min-h-[440px] max-h-[580px]',
           dark
             ? 'bg-slate-950 text-slate-100'
             : 'bg-gradient-to-b from-emerald-50/60 via-emerald-50/30 to-teal-50/40 text-slate-900'
@@ -559,47 +601,31 @@ export function DocumentViewer({
                 <Eye className="h-4.5 w-4.5" />
                 <span>View Uploaded Doc</span>
               </button>
-
-              {onOpenDocModal && (
-                <button
-                  type="button"
-                  onClick={onOpenDocModal}
-                  className={cn(
-                    'inline-flex items-center justify-center gap-1.5 rounded-xl border font-semibold text-xs px-4 py-3 active:scale-95 transition-all cursor-pointer',
-                    dark
-                      ? 'border-white/20 bg-white/10 hover:bg-white/20 text-slate-200'
-                      : 'border-emerald-200 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 shadow-2xs'
-                  )}
-                >
-                  <Maximize2 className="h-4 w-4" />
-                  <span>Full Screen</span>
-                </button>
-              )}
             </div>
           </div>
         ) : loading ? (
           <div
             className={cn(
-              'flex flex-col items-center gap-3 p-12 w-full h-full flex-1 justify-center',
-              dark ? 'bg-slate-950 text-slate-400' : 'bg-transparent text-slate-500'
+              'flex flex-col items-center justify-center p-8 text-center space-y-3 w-full h-[580px]',
+              dark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
             )}
           >
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" />
-            <span className="text-xs font-medium">Loading document preview inline...</span>
+            <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+            <p className="text-xs text-muted-foreground">Loading document preview...</p>
           </div>
         ) : error && !currentPageUrl ? (
           <div
             className={cn(
-              'flex flex-col items-center justify-center p-6 text-center space-y-4 border border-dashed rounded-xl m-6 max-w-md',
-              dark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-300 shadow-xs'
+              'flex flex-col items-center justify-center p-8 text-center space-y-4 w-full h-[580px]',
+              dark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
             )}
           >
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500 border border-red-200">
-              <FileText className="h-7 w-7" />
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <FileText className="h-6 w-6" />
             </div>
             <div className="space-y-1">
-              <h4 className={cn('font-bold text-sm', dark ? 'text-slate-100' : 'text-slate-800')}>{displayTitle}</h4>
-              <p className="text-xs text-slate-500 max-w-xs">{error}</p>
+              <p className="text-sm font-medium text-foreground">Unable to display preview</p>
+              <p className="text-xs text-muted-foreground">{error}</p>
             </div>
             <button
               type="button"
@@ -613,52 +639,40 @@ export function DocumentViewer({
           /* Custom Premium Image Viewer with Zoom Transform */
           <div
             ref={containerRef}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
             className={cn(
-              'w-full h-[580px] overflow-auto flex items-start justify-center p-4 scrollbar-thin relative',
+              'w-full h-full min-h-[440px] max-h-[580px] overflow-auto p-4 scrollbar-thin relative flex',
               dark ? 'bg-slate-950' : 'bg-slate-100/90'
             )}
           >
-            <div
-              className="transition-transform duration-200 origin-top"
-              style={{ transform: `scale(${zoom})` }}
-            >
-              <img
-                src={currentPageUrl}
-                alt={displayTitle}
-                onError={() => setImgError(true)}
-                className="shadow-2xl border border-slate-300 dark:border-slate-800 rounded max-w-full h-auto bg-white"
-                style={{ minWidth: '480px' }}
-              />
+            <div className="m-auto flex flex-col items-center justify-center transition-all duration-200">
+              <div
+                className="transition-transform duration-200"
+                style={{
+                  transform: `scale(${zoom})`,
+                  transformOrigin: 'top center',
+                  marginTop: zoom > 1 ? `${(zoom - 1) * 280}px` : 0,
+                  marginBottom: zoom > 1 ? `${(zoom - 1) * 280}px` : 0,
+                  marginLeft: zoom > 1 ? `${(zoom - 1) * 260}px` : 0,
+                  marginRight: zoom > 1 ? `${(zoom - 1) * 260}px` : 0,
+                }}
+              >
+                <img
+                  src={currentPageUrl}
+                  alt={displayTitle}
+                  onError={() => setImgError(true)}
+                  className="shadow-2xl border border-slate-300 dark:border-slate-800 rounded max-w-full h-auto bg-white block"
+                  style={{ width: '520px', maxWidth: '85vw' }}
+                />
+              </div>
             </div>
-            {/* Quick full-screen preview button overlay */}
-            <button
-              type="button"
-              onClick={onOpenDocModal}
-              className="absolute bottom-4 right-4 bg-teal-600/90 backdrop-blur text-white rounded-full px-4 py-2 text-xs font-bold shadow-lg hover:bg-teal-700 transition-colors z-10 cursor-pointer flex items-center gap-1.5"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Full Screen View</span>
-            </button>
           </div>
         ) : blobUrl ? (
-          <div className="w-full relative">
+          <div className="w-full h-full min-h-[440px] max-h-[580px] relative">
             <iframe
               src={blobUrl}
               title={displayTitle}
-              className={cn('w-full h-[580px] border-0', dark ? 'bg-slate-900' : 'bg-slate-50')}
+              className={cn('w-full h-full min-h-[440px] max-h-[580px] border-0', dark ? 'bg-slate-900' : 'bg-slate-50')}
             />
-            {/* Quick full-screen preview button overlay */}
-            <button
-              type="button"
-              onClick={onOpenDocModal}
-              className="absolute bottom-4 right-4 bg-teal-600 text-white rounded-full px-4 py-2 text-xs font-bold shadow-lg hover:bg-teal-700 transition-colors z-10 cursor-pointer flex items-center gap-1.5"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Full Screen View</span>
-            </button>
           </div>
         ) : (
           <div

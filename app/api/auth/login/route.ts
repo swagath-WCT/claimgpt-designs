@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000';
-const INGRESS_BASE = rawBase.endsWith('/ingress') ? rawBase : `${rawBase.replace(/\/+$/, '')}/ingress`;
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -13,14 +10,36 @@ export async function POST(request: NextRequest) {
       role: body?.role,
     };
 
-    const url = `${INGRESS_BASE}/auth/login`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const urlsToTry = [
+      'http://127.0.0.1:8001/auth/login',
+      'http://127.0.0.1:8000/ingress/auth/login',
+      `${(process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001').replace(/\/+$/, '')}/auth/login`,
+    ];
 
-    const data = await res.json().catch(() => ({}));
+    let res: Response | null = null;
+    let data: any = null;
+
+    for (const url of urlsToTry) {
+      try {
+        const attempt = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (attempt.status !== 404) {
+          res = attempt;
+          data = await attempt.json().catch(() => ({}));
+          break;
+        }
+      } catch {
+        /* try next candidate */
+      }
+    }
+
+    if (!res) {
+      return NextResponse.json({ error: 'Unable to reach authentication service.' }, { status: 502 });
+    }
+
     if (res.ok) {
       return NextResponse.json(data, { status: res.status });
     }

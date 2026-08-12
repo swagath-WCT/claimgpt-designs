@@ -43,6 +43,7 @@ import {
   formatINR,
   useAuditorState,
 } from '@/components/claimgpt/use-auditor-state';
+import { PIPELINE_ACTIVE_STATUSES } from '@/lib/api-client';
 import {
   CountUp,
   MagneticButton,
@@ -193,9 +194,12 @@ export function DashboardClinical() {
                       const isSelected = claim.id === s.claimId;
                       const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                       const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
-                      const isClaimProcessing = isSelected && s.analyzing;
-                      const currentProgress = isClaimProcessing ? s.progress : 100;
-                      const currentStep = isClaimProcessing ? (s.stepDescription || `Parsing (LLM agent reading document) - ${s.progress}%`) : "Completed";
+                      const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
+                      const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing);
+                      const currentProgress = isSelected && s.analyzing ? s.progress : (claim.progress?.percentage || (claim.status === "UPLOADED" ? 20 : 55));
+                      const currentStep = isSelected && s.analyzing
+                        ? (s.stepDescription || `${claim.status === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"} - ${currentProgress}%`)
+                        : (claim.progress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${currentProgress}%`));
                       const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
 
                       return (
@@ -294,7 +298,7 @@ export function DashboardClinical() {
                               <div>
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-2 py-0.5 text-[9px]">
                                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
-                                  Parsing
+                                  {claim.status === "UPLOADED" ? "Uploaded" : "Parsing"}
                                 </span>
                               </div>
                               <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
@@ -519,32 +523,42 @@ export function DashboardClinical() {
                         const isSelected = claim.id === s.claimId;
                         const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                         const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
+                        const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
+                        const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing);
+                        const currentProgress = isSelected && s.analyzing ? s.progress : (claim.progress?.percentage || (claim.status === "UPLOADED" ? 20 : 55));
+                        const currentStep = isSelected && s.analyzing
+                          ? (s.stepDescription || `${claim.status === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"} - ${currentProgress}%`)
+                          : (claim.progress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${currentProgress}%`));
+                        const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
 
                         return (
-                          <button
+                          <div
                             key={claim.id}
-                            type="button"
                             onClick={() => s.selectClaim(claim.id)}
                             className={cn(
-                              "flex-none snap-start rounded-xl border p-3 text-left transition-all tap-highlight-none min-w-[200px] max-w-[240px] space-y-1.5",
+                              "flex-none snap-start rounded-2xl border p-3 text-left transition-all tap-highlight-none min-w-[220px] max-w-[260px] space-y-2 cursor-pointer",
                               isSelected
-                                ? "border-teal-500 bg-teal-50/50 shadow-sm ring-1 ring-teal-500/30"
-                                : "border-border bg-slate-50 hover:bg-slate-100"
+                                ? "border-blue-400 bg-white shadow-md ring-1 ring-blue-300"
+                                : "border-slate-200 bg-white/80 hover:bg-white shadow-2xs"
                             )}
                           >
-                            <div className="flex items-center justify-between gap-1">
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                <p className="text-xs font-bold truncate text-foreground">
-                                  {claimName}
-                                </p>
-                                {docs.length > 0 && (
-                                  <span className="text-[10px] text-muted-foreground font-medium flex-none">
-                                    ({docs.length})
+                            <div className="flex items-center justify-between gap-1 text-[10px]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="rounded bg-blue-50 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200">
+                                  #{shortId || "CLM001"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 flex-none">
+                                {isClaimProcessing ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                                    {claim.status === "UPLOADED" ? "OCR" : "Parsing"}
+                                  </span>
+                                ) : (
+                                  <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[9px] font-bold">
+                                    ✓ Ready
                                   </span>
                                 )}
-                              </div>
-                              <div className="flex items-center gap-1.5 flex-none">
-                                {isSelected ? <span className="flex h-2 w-2 rounded-full bg-emerald-500 flex-none" /> : null}
                                 <span
                                   role="button"
                                   tabIndex={0}
@@ -558,7 +572,7 @@ export function DashboardClinical() {
                                       setClaimToDelete({ id: claim.id, name: claimName });
                                     }
                                   }}
-                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-100 transition-colors cursor-pointer"
+                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                   title="Delete claim"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -566,30 +580,33 @@ export function DashboardClinical() {
                               </div>
                             </div>
 
-                            {/* Document Chips */}
-                            {docs.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {docs.map((d: any) => (
-                                  <span
-                                    key={d.id || d.file_name}
-                                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-medium text-slate-700 truncate max-w-[150px]"
-                                  >
-                                    {d.file_name.endsWith('.pdf') ? (
-                                      <FileText className="h-2.5 w-2.5 text-red-500 flex-none" />
-                                    ) : (
-                                      <ImageIcon className="h-2.5 w-2.5 text-teal-600 flex-none" />
-                                    )}
-                                    <span className="truncate">{d.file_name}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
-                              <span className="truncate">ID: {claim.id.slice(0, 8)}...</span>
-                              <span className="text-[9px] text-emerald-700 font-semibold">✓ Ready</span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold truncate text-slate-900">
+                                {claimName}
+                              </p>
+                              {docs.length > 0 && (
+                                <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                                  {docs[0].file_name} {docs.length > 1 ? `+${docs.length - 1} more` : ''}
+                                </p>
+                              )}
                             </div>
-                          </button>
+
+                            {/* Progress bar if actively processing */}
+                            {isClaimProcessing ? (
+                              <div className="space-y-1 pt-1 border-t border-amber-200/60">
+                                <div className="flex items-center justify-between text-[10px] font-semibold text-amber-900">
+                                  <span className="truncate pr-1">{currentStep}</span>
+                                  <span className="font-mono font-bold">{currentProgress}%</span>
+                                </div>
+                                <div className="h-1.5 w-full rounded-full bg-amber-100 overflow-hidden border border-amber-200/50">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.max(currentProgress, 10)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
                         );
                       })
                       )}
@@ -667,43 +684,54 @@ export function DashboardClinical() {
                   {/* Processing Pipeline Progress Bar Card (Only visible when claim is active/uploaded) */}
                   <StaggerItem index={4} id="pipeline-progress-section">
                     <SpotlightCard className="bg-white p-4 shadow-elevation-sm sm:p-5">
-                      {/* Top Bar: Claim Info, Progress Badge & View Report Button */}
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-bold text-foreground">Processing Pipeline</h2>
-                            {s.isDocumentsRequested ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-700 border border-amber-500/30 animate-pulse">
-                                <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                                PAUSED — ACTION REQUIRED
-                              </span>
-                            ) : s.nameMismatchWarning ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-bold text-red-700 border border-red-500/30 animate-pulse">
-                                <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
-                                PAUSED — NAME MISMATCH
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-500/30">
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                {s.progress}% COMPLETE
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Claim ID: <span className="font-mono font-medium text-foreground">{s.claimId || "CLM-2026-08842"}</span>
+                      {/* Top Bar: Claim Info on Left, Status + View Report Button on Right (Always 1 row on mobile) */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h2 className="text-xs sm:text-sm font-bold text-foreground truncate">Processing Pipeline</h2>
+                          <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate font-mono mt-0.5">
+                            ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "CLM-2026-08842"}
                           </p>
                         </div>
 
-                        {(s.progress >= 100 || s.realPreview) && !s.isDocumentsRequested && !s.nameMismatchWarning ? (
-                          <Button onClick={s.openReportModal} className="teal-gradient text-xs font-semibold text-white shadow-md animate-scale-in self-start sm:self-auto cursor-pointer">
-                            <FileText className="mr-1.5 h-4 w-4" /> View AI Report
-                          </Button>
-                        ) : null}
+                        <div className="flex items-center gap-1.5 flex-none">
+                          {s.isDocumentsRequested ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-amber-700 border border-amber-500/30 animate-pulse">
+                              <AlertTriangle className="h-3 w-3 text-amber-600" />
+                              REQUIRED
+                            </span>
+                          ) : s.nameMismatchWarning ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-red-700 border border-red-500/30 animate-pulse">
+                              <AlertTriangle className="h-3 w-3 text-red-600" />
+                              MISMATCH
+                            </span>
+                          ) : s.progress >= 100 ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 border border-emerald-500/30">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                              100% COMPLETE
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-cyan-700 border border-cyan-500/30 animate-pulse">
+                              <Loader2 className="h-3 w-3 text-cyan-600 animate-spin" />
+                              {s.progress}%
+                            </span>
+                          )}
+
+                          {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && !s.nameMismatchWarning ? (
+                            <Button
+                              onClick={s.openReportModal}
+                              size="sm"
+                              className="teal-gradient text-[11px] sm:text-xs font-semibold text-white shadow-md animate-scale-in h-7 sm:h-8 px-2 sm:px-3 rounded-lg cursor-pointer flex items-center gap-1"
+                            >
+                              <FileText className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                              <span>View Report</span>
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
 
-                      {/* Clean Progress Bar (0% to 100%) */}
-                      <div className="relative mt-3 mb-2 sm:mb-4">
-                        <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden p-0.5 border border-border">
+                      {/* Glowing Progress Bar (0% to 100%) */}
+                      <div className="relative mt-3 mb-3">
+                        <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden border border-border">
                           <div
                             className={cn(
                               "h-full rounded-full transition-all duration-500",
@@ -714,14 +742,75 @@ export function DashboardClinical() {
                             style={{ width: `${Math.max(s.progress, 5)}%` }}
                           />
                         </div>
-                        <div className="mt-1 flex items-center justify-between text-xs font-semibold text-muted-foreground">
-                          <span>0%</span>
-                          <span className="font-extrabold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full">{s.progress >= 100 ? "100% Complete" : (s.stepDescription || `${s.progress}% Active Stage`)}</span>
-                          <span>100%</span>
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {s.progress < 100 && !s.isDocumentsRequested && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping flex-none" />
+                            )}
+                            <span className="text-[11px] font-semibold text-slate-700 truncate">
+                              {s.progress >= 100 ? "AI Verification Complete" : (s.stepDescription || "Analyzing documents...")}
+                            </span>
+                          </div>
+                          <span className="font-mono font-extrabold text-[11px] text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full flex-none">
+                            {s.progress}%
+                          </span>
                         </div>
                       </div>
 
-                      {/* Desktop Only (hidden on mobile): Clean 5 Stage Cards without redundant 'VERIFIED' word */}
+                      {/* 5-Stage Stepper Tracker */}
+                      {/* Mobile: Connected Stepper Track */}
+                      <div className="sm:hidden pt-3 border-t border-border/50">
+                        <div className="relative flex items-center justify-between px-1">
+                          {/* Connecting Background Track */}
+                          <div className="absolute left-4 right-4 top-3.5 h-0.5 bg-slate-200 -z-0" />
+                          <div
+                            className="absolute left-4 top-3.5 h-0.5 bg-gradient-to-r from-teal-500 to-emerald-500 transition-all duration-500 -z-0"
+                            style={{
+                              width: s.progress >= 100
+                                ? 'calc(100% - 32px)'
+                                : `${Math.min(100, Math.max(0, (s.stageIndex / 4) * 100))}%`,
+                            }}
+                          />
+
+                          {PIPELINE.map((stage, i) => {
+                            const done = i < s.stageIndex || s.progress >= 100;
+                            const current = i === s.stageIndex && s.progress < 100;
+                            const shortLabels = ['Attached', 'OCR Text', 'Parsing', 'Coding', 'Settled'];
+
+                            return (
+                              <button
+                                key={stage.key}
+                                type="button"
+                                onClick={() => s.setActiveStage(stage.key)}
+                                className="relative z-10 flex flex-col items-center gap-1 tap-highlight-none group cursor-pointer focus:outline-none"
+                              >
+                                <div
+                                  className={cn(
+                                    "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold transition-all shadow-xs",
+                                    done && "bg-emerald-600 text-white shadow-emerald-500/20",
+                                    current && "bg-teal-600 text-white ring-4 ring-teal-500/20 animate-pulse scale-110 shadow-md",
+                                    !done && !current && "bg-white text-slate-400 border-2 border-slate-200"
+                                  )}
+                                >
+                                  {done ? <Check className="h-3 w-3" /> : i + 1}
+                                </div>
+                                <span
+                                  className={cn(
+                                    "text-[9px] font-semibold text-center leading-tight tracking-tight",
+                                    current && "font-bold text-teal-700",
+                                    done && "text-slate-700",
+                                    !done && !current && "text-slate-400"
+                                  )}
+                                >
+                                  {shortLabels[i] || stage.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Desktop: 5 Stage Cards */}
                       <div className="hidden sm:grid grid-cols-5 gap-2 pt-3 border-t border-border/50">
                         {PIPELINE.map((stage, i) => {
                           const done = i < s.stageIndex || s.progress >= 100;
@@ -732,19 +821,19 @@ export function DashboardClinical() {
                               type="button"
                               onClick={() => s.setActiveStage(stage.key)}
                               className={cn(
-                                "flex items-center justify-center gap-2 p-2 rounded-xl border text-center transition-all tap-highlight-none min-h-[44px]",
+                                "flex items-center justify-center gap-2 p-2 rounded-xl border text-center transition-all tap-highlight-none min-h-[44px] cursor-pointer",
                                 done && "border-emerald-500/30 bg-emerald-500/10 shadow-xs",
-                                current && "border-accent bg-accent/15 ring-2 ring-accent/30 animate-pulse",
+                                current && "border-teal-500 bg-teal-500/10 ring-2 ring-teal-500/30 animate-pulse shadow-sm",
                                 !done && !current && "border-border bg-slate-50 hover:bg-slate-100"
                               )}
                             >
                               <span className={cn(
-                                "flex h-4 w-4 flex-none items-center justify-center rounded-full text-[10px] font-bold",
+                                "flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-bold",
                                 done && "bg-emerald-600 text-white",
-                                current && "bg-accent text-white animate-bounce",
-                                !done && !current && "bg-muted text-muted-foreground"
+                                current && "bg-teal-600 text-white animate-bounce",
+                                !done && !current && "bg-slate-200 text-slate-500"
                               )}>
-                                {done ? <Check className="h-2.5 w-2.5" /> : i + 1}
+                                {done ? <Check className="h-3 w-3" /> : i + 1}
                               </span>
                               <p className={cn("text-xs font-semibold leading-tight truncate", done || current ? "text-foreground" : "text-muted-foreground")}>
                                 {stage.label}
@@ -827,11 +916,13 @@ export function DashboardClinical() {
                           <h2 className="text-sm font-semibold text-foreground">Claims Auditor &amp; Preview</h2>
                           <p className="text-xs text-muted-foreground">Hover a table row to highlight its source on the document.</p>
                         </div>
-                        <Button onClick={s.openReportModal} size="sm" className="teal-gradient text-xs font-semibold text-white cursor-pointer">
-                          <FileText className="mr-1.5 h-3.5 w-3.5" /> Full Audit Report
-                        </Button>
+                        {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && (
+                          <Button onClick={s.openReportModal} size="sm" className="teal-gradient text-xs font-semibold text-white cursor-pointer">
+                            <FileText className="mr-1.5 h-3.5 w-3.5" /> Full Audit Report
+                          </Button>
+                        )}
                       </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-2">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 lg:h-[560px] min-h-[500px]">
                         <DocumentViewer
                           claimId={s.claimId}
                           fileObj={s.files.length > 0 ? s.files[s.files.length - 1] : null}
@@ -843,10 +934,10 @@ export function DashboardClinical() {
                           activeDocumentId={s.activeDocumentId}
                           onSelectDocument={s.setActiveDocumentId}
                           onOpenDocModal={s.openDocModal}
-                          className="border-b border-border lg:border-b-0 lg:border-r"
+                          className="border-b border-border lg:border-b-0 lg:border-r h-full overflow-hidden"
                         />
-                        <div className="flex flex-col">
-                          <div className="border-b border-border bg-slate-50/60 px-5 py-3 flex items-center justify-between">
+                        <div className="flex flex-col h-full overflow-hidden">
+                          <div className="border-b border-border bg-slate-50/60 px-5 py-3 flex items-center justify-between flex-none">
                             <h3 className="text-sm font-semibold text-foreground">Extracted Claim Data</h3>
                             {s.nameMismatchWarning && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-red-100 border border-red-300 px-2.5 py-0.5 text-[10px] font-bold text-red-800 animate-pulse">
@@ -856,7 +947,7 @@ export function DashboardClinical() {
                             )}
                           </div>
                           {s.nameMismatchWarning && (
-                            <div className="mx-5 mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-900 shadow-sm animate-fade-in font-sans">
+                            <div className="mx-5 mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-900 shadow-sm animate-fade-in font-sans flex-none">
                               <AlertTriangle className="h-4 w-4 text-red-600 flex-none mt-0.5" />
                               <div>
                                 <h4 className="font-bold text-red-900">Patient Name Mismatch Detected</h4>
@@ -864,41 +955,43 @@ export function DashboardClinical() {
                               </div>
                             </div>
                           )}
-                          <div key={`${s.claimId || 'default-clinical'}-${s.previewVersion}`} className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+                          <div key={`${s.claimId || 'default-clinical'}-${s.previewVersion}`} className="grid grid-cols-1 gap-3.5 p-4 sm:grid-cols-2 flex-none">
                             <MetaField id="c-patient-name" label="Patient Name" defaultValue={s.patientName} edited={!!s.edited['patient-name']} onEdit={() => s.markEdited('patient-name')} />
                             <MetaField id="c-hospital" label="Hospital" defaultValue={s.hospitalName} edited={!!s.edited['hospital']} onEdit={() => s.markEdited('hospital')} />
                             <MetaField id="c-admission" label="Admission Date" defaultValue={s.admissionDate} edited={!!s.edited['admission']} onEdit={() => s.markEdited('admission')} />
                             <MetaField id="c-discharge" label="Discharge Date" defaultValue={s.dischargeDate} edited={!!s.edited['discharge']} onEdit={() => s.markEdited('discharge')} />
                             <MetaField id="c-diagnosis" label="Diagnosis" defaultValue={s.diagnosis} edited={!!s.edited['diagnosis']} onEdit={() => s.markEdited('diagnosis')} className="sm:col-span-2" />
                           </div>
-                          <div className="border-t border-border px-5 py-4">
-                            <h3 className="mb-3 text-sm font-semibold text-foreground">Categorized Expenses</h3>
-                            <div className="overflow-hidden rounded-lg border border-border">
-                              <table className="w-full text-sm">
-                                <thead className="bg-slate-100 text-xs uppercase tracking-wide text-muted-foreground">
-                                  <tr>
-                                    <th className="px-3 py-2.5 text-left font-semibold">Category</th>
-                                    <th className="hidden px-3 py-2.5 text-left font-semibold sm:table-cell">Description</th>
-                                    <th className="px-3 py-2.5 text-right font-semibold">Amount</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border">
-                                  {s.lineItems.map((item) => (
-                                    <tr key={item.id} onMouseEnter={() => s.setHoveredField(item.id)} onMouseLeave={() => s.setHoveredField(null)} className={cn('cursor-pointer transition-colors', s.hoveredField === item.id ? 'bg-accent/5' : 'hover:bg-slate-50')}>
-                                      <td className="px-3 py-2.5 font-medium text-foreground">{item.category}</td>
-                                      <td className="hidden px-3 py-2.5 text-muted-foreground sm:table-cell">{item.description}</td>
-                                      <td className="px-3 py-2.5 text-right font-medium text-foreground">{formatINR(item.amount)}</td>
+                          <div className="border-t border-border px-5 py-3 flex-1 flex flex-col min-h-0 overflow-hidden">
+                            <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Categorized Expenses</h3>
+                            <div className="overflow-hidden rounded-lg border border-border flex-1 flex flex-col min-h-0">
+                              <div className="overflow-y-auto scrollbar-thin flex-1 h-full">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-slate-100 text-xs uppercase tracking-wide text-muted-foreground sticky top-0 z-10 shadow-2xs">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left font-semibold bg-slate-100">Category</th>
+                                      <th className="hidden px-3 py-2 text-left font-semibold sm:table-cell bg-slate-100">Description</th>
+                                      <th className="px-3 py-2 text-right font-semibold bg-slate-100">Amount</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot>
-                                  <tr className="border-t-2 border-border bg-slate-50">
-                                    <td className="px-3 py-3 font-bold text-foreground">Total</td>
-                                    <td className="hidden px-3 py-3 sm:table-cell" />
-                                    <td className="px-3 py-3 text-right font-bold text-teal-700">{formatINR(s.total)}</td>
-                                  </tr>
-                                </tfoot>
-                              </table>
+                                  </thead>
+                                  <tbody className="divide-y divide-border">
+                                    {s.lineItems.map((item) => (
+                                      <tr key={item.id} onMouseEnter={() => s.setHoveredField(item.id)} onMouseLeave={() => s.setHoveredField(null)} className={cn('cursor-pointer transition-colors', s.hoveredField === item.id ? 'bg-accent/5' : 'hover:bg-slate-50')}>
+                                        <td className="px-3 py-2 font-medium text-foreground">{item.category}</td>
+                                        <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">{item.description}</td>
+                                        <td className="px-3 py-2 text-right font-medium text-foreground">{formatINR(item.amount)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot className="sticky bottom-0 z-10 shadow-2xs bg-slate-50 border-t-2 border-border">
+                                    <tr className="border-t-2 border-border bg-slate-50">
+                                      <td className="px-3 py-2.5 font-bold text-foreground bg-slate-50">Total</td>
+                                      <td className="hidden px-3 py-2.5 sm:table-cell bg-slate-50" />
+                                      <td className="px-3 py-2.5 text-right font-bold text-teal-700 bg-slate-50">{formatINR(s.total)}</td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
                             </div>
                           </div>
                         </div>
