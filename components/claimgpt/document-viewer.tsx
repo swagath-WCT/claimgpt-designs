@@ -1,6 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { LINE_ITEMS, formatINR } from '@/lib/claimgpt-data';
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, FileText, ShieldCheck, FileCheck, Stethoscope, FileSearch, Upload } from 'lucide-react';
+import {
+  ZoomIn,
+  ZoomOut,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  ShieldCheck,
+  FileCheck,
+  Stethoscope,
+  FileSearch,
+  Upload,
+  Eye,
+  EyeOff,
+  Maximize2
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ClaimDocumentPreview, INGRESS_API } from '@/lib/api-client';
 
@@ -102,11 +116,17 @@ export function DocumentViewer({
   const [selectedDocId, setSelectedDocId] = useState<string | null>(
     activeDocumentId || getDocKey(effectiveDocs[0], 0)
   );
+  const [isDocRevealed, setIsDocRevealed] = useState<boolean>(false);
   const [pageIndex, setPageIndex] = useState<number>(0);
   const [imgError, setImgError] = useState<boolean>(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset doc revealed state whenever a different claim or file is selected
+  useEffect(() => {
+    setIsDocRevealed(false);
+  }, [claimId, fileObj?.name]);
 
   // Serialize document IDs to avoid resetting tab selections during parent background polling ticks
   const serializedDocIds = effectiveDocs.map((d, index) => getDocKey(d, index)).join(',');
@@ -312,11 +332,11 @@ export function DocumentViewer({
       {/* Multi-Document Carousel Bar */}
       <div
         className={cn(
-          'flex items-center gap-2 overflow-x-auto px-4 py-2 scrollbar-thin',
-          dark ? 'border-b border-white/10 bg-slate-900/80' : 'border-b border-slate-200 bg-slate-100/70'
+          'flex items-center gap-2 overflow-x-auto px-4 py-2.5 scrollbar-thin',
+          dark ? 'border-b border-white/10 bg-slate-900/80' : 'border-b border-border bg-slate-50/60'
         )}
       >
-        <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">Documents ({effectiveDocs.length}):</span>
+        <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Documents ({effectiveDocs.length}):</span>
         {effectiveDocs.map((doc, index) => {
           const docId = getDocKey(doc, index);
           const fileName = doc.original_filename || doc.file_name || 'Document';
@@ -336,10 +356,10 @@ export function DocumentViewer({
               className={cn(
                 'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all cursor-pointer whitespace-nowrap',
                 isSelected
-                  ? 'border-teal-500 bg-teal-500/10 text-teal-700 dark:text-teal-300 shadow-sm ring-1 ring-teal-500/30 font-bold'
+                  ? 'border-teal-500 bg-teal-500/10 text-teal-700 dark:text-teal-300 shadow-xs ring-1 ring-teal-500/30 font-bold'
                   : dark
                     ? 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                    : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
               )}
             >
               <DocBadgeIcon className="h-3.5 w-3.5" />
@@ -349,12 +369,12 @@ export function DocumentViewer({
         })}
       </div>
 
-      {/* PDF-like Control Toolbar for Page Image Viewer */}
-      {currentPageUrl && !imgError && (
+      {/* PDF-like Control Toolbar for Page Image Viewer (Shown when document is revealed) */}
+      {isDocRevealed && currentPageUrl && !imgError && (
         <div
           className={cn(
             'flex items-center justify-between px-4 py-2 border-b text-xs select-none flex-none',
-            dark ? 'border-white/10 bg-slate-900/60 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-600'
+            dark ? 'border-white/10 bg-slate-900/60 text-slate-300' : 'border-border bg-slate-50/70 text-slate-600'
           )}
         >
           {/* Page Navigation */}
@@ -372,7 +392,7 @@ export function DocumentViewer({
               <ChevronLeft className="h-4 w-4" />
             </button>
             <span className="font-medium">
-              Page <span className={cn('px-2 py-0.5 rounded border font-mono mx-1', dark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-900')}>{pageIndex + 1}</span> of {pageCount}
+              Page <span className={cn('px-2 py-0.5 rounded border font-mono mx-1', dark ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900')}>{pageIndex + 1}</span> of {pageCount}
             </span>
             <button
               type="button"
@@ -388,56 +408,197 @@ export function DocumentViewer({
             </button>
           </div>
 
-          {/* Zoom Controls */}
-          <div className="flex items-center gap-1.5">
+          {/* Zoom Controls & Hide Doc Toggle */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
+                className={cn(
+                  'p-1.5 rounded-lg transition-colors cursor-pointer',
+                  dark ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+                )}
+                title="Zoom Out"
+              >
+                <ZoomOut className="h-4 w-4" />
+              </button>
+              <span className="w-11 text-center font-mono font-medium text-[11px]">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoom(Math.min(2.5, zoom + 0.1))}
+                className={cn(
+                  'p-1.5 rounded-lg transition-colors cursor-pointer',
+                  dark ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+                )}
+                title="Zoom In"
+              >
+                <ZoomIn className="h-4 w-4" />
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
+              onClick={() => setIsDocRevealed(false)}
               className={cn(
-                'p-1.5 rounded-lg transition-colors cursor-pointer',
-                dark ? 'hover:bg-white/10' : 'hover:bg-slate-200'
+                'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer',
+                dark
+                  ? 'border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200'
+                  : 'border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700'
               )}
-              title="Zoom Out"
+              title="Hide Document Preview"
             >
-              <ZoomOut className="h-4 w-4" />
-            </button>
-            <span className="w-12 text-center font-mono font-medium">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              type="button"
-              onClick={() => setZoom(Math.min(2.5, zoom + 0.1))}
-              className={cn(
-                'p-1.5 rounded-lg transition-colors cursor-pointer',
-                dark ? 'hover:bg-white/10' : 'hover:bg-slate-200'
-              )}
-              title="Zoom In"
-            >
-              <ZoomIn className="h-4 w-4" />
+              <EyeOff className="h-3 w-3" />
+              <span>Hide Doc</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Document Preview Canvas */}
+      {/* Document Preview Canvas Area */}
       <div
         className={cn(
-          'w-full relative flex flex-col items-center justify-center border-t border-slate-200 dark:border-slate-800 overflow-hidden',
-          dark ? 'bg-slate-950' : 'bg-slate-900'
+          'w-full relative flex-1 flex flex-col items-center justify-center overflow-hidden transition-colors min-h-[500px]',
+          dark
+            ? 'bg-slate-950 text-slate-100'
+            : 'bg-gradient-to-b from-emerald-50/60 via-emerald-50/30 to-teal-50/40 text-slate-900'
         )}
       >
-        {loading ? (
-          <div className="flex flex-col items-center gap-3 text-slate-400 p-12 w-full h-[550px] justify-center bg-slate-950">
+        {!hasActiveClaim ? (
+          <div
+            className={cn(
+              'flex flex-col items-center justify-center p-8 text-center space-y-3 w-full h-full flex-1',
+              dark
+                ? 'bg-slate-950 text-slate-100'
+                : 'bg-transparent text-slate-800'
+            )}
+          >
+            <div
+              className={cn(
+                'flex h-16 w-16 items-center justify-center rounded-2xl border shadow-xs mb-1',
+                dark
+                  ? 'bg-teal-500/10 border-teal-500/30 text-teal-400'
+                  : 'bg-emerald-100 border-emerald-300 text-emerald-700'
+              )}
+            >
+              <FileSearch className="h-8 w-8" />
+            </div>
+            <div className="space-y-1.5 max-w-sm">
+              <h4 className={cn('font-bold text-base', dark ? 'text-slate-100' : 'text-slate-900')}>
+                No Claim Uploaded
+              </h4>
+              <p className={cn('text-xs leading-relaxed', dark ? 'text-slate-400' : 'text-slate-500')}>
+                Please upload a claim document to check AI audit, OCR extraction, and verification.
+              </p>
+            </div>
+          </div>
+        ) : !isDocRevealed ? (
+          /* View Uploaded Doc Option / Trigger Card */
+          <div
+            className={cn(
+              'flex flex-col items-center justify-center p-8 text-center space-y-4 w-full h-full flex-1 animate-fade-in',
+              dark
+                ? 'bg-slate-950 text-slate-100'
+                : 'bg-transparent text-slate-900'
+            )}
+          >
+            <div className="relative">
+              <div
+                className={cn(
+                  'flex h-20 w-20 items-center justify-center rounded-3xl border shadow-sm',
+                  dark
+                    ? 'bg-teal-500/15 border-teal-500/30 text-teal-400 shadow-teal-500/10'
+                    : 'bg-emerald-100/90 border-emerald-300 text-emerald-700 shadow-emerald-600/15'
+                )}
+              >
+                <FileCheck className="h-10 w-10" />
+              </div>
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white shadow-xs">
+                ✓
+              </span>
+            </div>
+
+            <div className="space-y-1.5 max-w-sm">
+              <div
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-[11px] font-bold',
+                  dark
+                    ? 'bg-teal-500/10 border border-teal-500/30 text-teal-300'
+                    : 'bg-emerald-100/90 border border-emerald-300 text-emerald-800'
+                )}
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                <span>CLAIM DOCUMENT ATTACHED</span>
+              </div>
+              <h4
+                className={cn(
+                  'font-bold text-base sm:text-lg truncate px-2',
+                  dark ? 'text-white' : 'text-slate-900'
+                )}
+                title={displayTitle}
+              >
+                {displayTitle}
+              </h4>
+              <p className={cn('text-xs font-medium', dark ? 'text-slate-400' : 'text-emerald-800/70')}>
+                {pageCount} {pageCount === 1 ? 'Page' : 'Pages'} · Document OCR parsed &amp; verified
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsDocRevealed(true)}
+                className={cn(
+                  'inline-flex items-center justify-center gap-2 rounded-xl text-white font-semibold text-xs sm:text-sm px-6 py-3 shadow-md active:scale-95 transition-all cursor-pointer min-w-[190px]',
+                  dark
+                    ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/25'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20'
+                )}
+              >
+                <Eye className="h-4.5 w-4.5" />
+                <span>View Uploaded Doc</span>
+              </button>
+
+              {onOpenDocModal && (
+                <button
+                  type="button"
+                  onClick={onOpenDocModal}
+                  className={cn(
+                    'inline-flex items-center justify-center gap-1.5 rounded-xl border font-semibold text-xs px-4 py-3 active:scale-95 transition-all cursor-pointer',
+                    dark
+                      ? 'border-white/20 bg-white/10 hover:bg-white/20 text-slate-200'
+                      : 'border-emerald-200 bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 shadow-2xs'
+                  )}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                  <span>Full Screen</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : loading ? (
+          <div
+            className={cn(
+              'flex flex-col items-center gap-3 p-12 w-full h-full flex-1 justify-center',
+              dark ? 'bg-slate-950 text-slate-400' : 'bg-transparent text-slate-500'
+            )}
+          >
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-teal-500 border-t-transparent" />
             <span className="text-xs font-medium">Loading document preview inline...</span>
           </div>
         ) : error && !currentPageUrl ? (
-          <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 m-6 max-w-md">
+          <div
+            className={cn(
+              'flex flex-col items-center justify-center p-6 text-center space-y-4 border border-dashed rounded-xl m-6 max-w-md',
+              dark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-300 shadow-xs'
+            )}
+          >
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500 border border-red-200">
               <FileText className="h-7 w-7" />
             </div>
             <div className="space-y-1">
-              <h4 className="font-bold text-sm text-slate-800">{displayTitle}</h4>
+              <h4 className={cn('font-bold text-sm', dark ? 'text-slate-100' : 'text-slate-800')}>{displayTitle}</h4>
               <p className="text-xs text-slate-500 max-w-xs">{error}</p>
             </div>
             <button
@@ -455,7 +616,10 @@ export function DocumentViewer({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className="w-full h-[580px] overflow-auto flex items-start justify-center p-4 scrollbar-thin"
+            className={cn(
+              'w-full h-[580px] overflow-auto flex items-start justify-center p-4 scrollbar-thin relative',
+              dark ? 'bg-slate-950' : 'bg-slate-100/90'
+            )}
           >
             <div
               className="transition-transform duration-200 origin-top"
@@ -484,7 +648,7 @@ export function DocumentViewer({
             <iframe
               src={blobUrl}
               title={displayTitle}
-              className="w-full h-[580px] border-0 bg-slate-900"
+              className={cn('w-full h-[580px] border-0', dark ? 'bg-slate-900' : 'bg-slate-50')}
             />
             {/* Quick full-screen preview button overlay */}
             <button
@@ -497,13 +661,29 @@ export function DocumentViewer({
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 w-full h-[580px] bg-slate-950 text-slate-100 border border-dashed border-slate-800/80 rounded-b-xl">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-400 shadow-inner mb-1">
+          <div
+            className={cn(
+              'flex flex-col items-center justify-center p-8 text-center space-y-3 w-full h-[580px] border border-dashed rounded-b-xl',
+              dark
+                ? 'bg-slate-950 text-slate-100 border-slate-800/80'
+                : 'bg-slate-50 text-slate-900 border-slate-200'
+            )}
+          >
+            <div
+              className={cn(
+                'flex h-16 w-16 items-center justify-center rounded-2xl border shadow-inner mb-1',
+                dark
+                  ? 'bg-teal-500/10 border-teal-500/30 text-teal-400'
+                  : 'bg-teal-50 border-teal-200 text-teal-600'
+              )}
+            >
               <FileSearch className="h-8 w-8" />
             </div>
             <div className="space-y-1.5 max-w-sm">
-              <h4 className="font-bold text-base text-slate-100">No Claim Uploaded</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <h4 className={cn('font-bold text-base', dark ? 'text-slate-100' : 'text-slate-900')}>
+                No Claim Uploaded
+              </h4>
+              <p className={cn('text-xs leading-relaxed', dark ? 'text-slate-400' : 'text-slate-500')}>
                 Please upload a claim document to check AI audit, OCR extraction, and verification.
               </p>
             </div>

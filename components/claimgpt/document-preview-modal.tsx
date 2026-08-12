@@ -471,6 +471,42 @@ export function DocumentPreviewModal({
                   className="w-full h-full border-0 bg-slate-900"
                 />
               ) : null}
+
+              {/* Floating Mobile Quick-Zoom Bar (Floating Bottom Pill) */}
+              <div className="sm:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-slate-900/95 border border-white/25 px-3 py-1.5 backdrop-blur-xl shadow-2xl z-30">
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.2) * 10) / 10))}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoom(1)}
+                  className="px-2 py-0.5 rounded-full text-xs font-mono font-bold text-teal-300 hover:text-white"
+                  title="Reset 100%"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.2) * 10) / 10))}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="h-3.5 w-3.5" />
+                </button>
+                <div className="h-4 w-px bg-white/20 mx-0.5" />
+                <button
+                  type="button"
+                  onClick={() => setZoom((z) => (z >= 1.4 ? 1 : 1.5))}
+                  className="px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-200 bg-white/10 hover:bg-white/20 active:scale-95 transition-all"
+                >
+                  {zoom >= 1.4 ? 'Fit Page' : 'Enlarge (150%)'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
