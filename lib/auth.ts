@@ -489,7 +489,7 @@ export function getAuthRedirectPath(session: Pick<AuthSession, 'role' | 'account
     return '/app';
   }
   const slug = session.organizationSlug || (session.organization ? session.organization.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'apollo-health');
-  if (session.accountRole === 'admin' || session.role === 'tpa') {
+  if (session.accountRole === 'admin') {
     return `/${slug}/admin`;
   }
   if (session.accountRole === 'reviewer') {
