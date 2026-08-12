@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, FileText, Download, ShieldCheck, FileCheck, Stethoscope, FileSearch, Layers, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, FileText, Download, ShieldCheck, FileCheck, Stethoscope, FileSearch, Layers, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Scan } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { INGRESS_API, SUBMISSION_API, ClaimDocumentPreview } from '@/lib/api-client';
 
@@ -123,7 +123,7 @@ export function DocumentPreviewModal({
     setImgError(false);
   }, [selectedDocId]);
 
-  // Mouse wheel zoom (Ctrl + Mouse Wheel) and trackpad pinch
+  // Mouse wheel zoom (Ctrl + Mouse Wheel) and native non-passive touch pinch to prevent UI scaling
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -137,38 +137,46 @@ export function DocumentPreviewModal({
       }
     };
 
+    const handleNativeTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        touchStartDistRef.current = dist;
+        touchStartZoomRef.current = zoom;
+      }
+    };
+
+    const handleNativeTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && touchStartDistRef.current > 0) {
+        e.preventDefault();
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = dist / touchStartDistRef.current;
+        setZoom(Math.max(0.5, Math.min(2.5, Math.round(touchStartZoomRef.current * factor * 100) / 100)));
+      }
+    };
+
+    const handleNativeTouchEnd = () => {
+      touchStartDistRef.current = 0;
+    };
+
     el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('touchstart', handleNativeTouchStart, { passive: false });
+    el.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    el.addEventListener('touchend', handleNativeTouchEnd);
+
     return () => {
       el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchstart', handleNativeTouchStart);
+      el.removeEventListener('touchmove', handleNativeTouchMove);
+      el.removeEventListener('touchend', handleNativeTouchEnd);
     };
-  }, [selectedDocId, pageIndex, imgError]);
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      touchStartDistRef.current = dist;
-      touchStartZoomRef.current = zoom;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2 && touchStartDistRef.current > 0) {
-      e.preventDefault();
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const factor = dist / touchStartDistRef.current;
-      setZoom(Math.max(0.5, Math.min(2.5, touchStartZoomRef.current * factor)));
-    }
-  };
-
-  const handleTouchEnd = () => {
-    touchStartDistRef.current = 0;
-  };
+  }, [selectedDocId, pageIndex, imgError, zoom]);
 
   // Fetch file bytes as Blob client-side or load local uploaded file object
   useEffect(() => {
@@ -319,7 +327,7 @@ export function DocumentPreviewModal({
         </div>
 
         {/* Modal Main Body: Left Sidebar + Embedded Viewer */}
-        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden min-w-0 w-full">
           {/* Left Sidebar: Uploaded Docs (Visible only on desktop screens) */}
           <div className="hidden lg:flex w-72 flex-none border-r border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 flex-col gap-4 overflow-y-auto">
             <div>
@@ -358,75 +366,94 @@ export function DocumentPreviewModal({
                 })}
               </div>
             </div>
-          </div>          {/* Right Area: Embedded PDF Viewer */}
-          <div className="flex flex-1 flex-col bg-slate-950 min-h-[50vh] lg:min-h-0">
-            {/* Top Toolbar */}
-            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-5 py-2.5 text-xs text-white flex-none">
-              <span className="font-medium truncate max-w-md">{activeTitle}</span>
-              <a
-                href={fileUrl}
-                download={activeTitle}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors"
-              >
-                <Download className="h-3.5 w-3.5" /> Download
-              </a>
-            </div>
+          </div>
 
-            {/* PDF-like Control Toolbar for Modal Page Image Viewer */}
-            {currentPageUrl && !imgError && (
-              <div className="flex items-center justify-between px-5 py-2 border-b border-slate-850 bg-slate-900/90 text-xs text-slate-300 select-none flex-none">
-                {/* Page Navigation */}
-                <div className="flex items-center gap-2">
+          {/* Right Area: Embedded Document Viewer */}
+          <div className="flex flex-1 flex-col bg-slate-950 min-h-[50vh] lg:min-h-0 overflow-hidden min-w-0 w-full">
+            {/* Unified Control Toolbar */}
+            <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-3 sm:px-5 py-2 text-xs text-white flex-none gap-2 min-w-0">
+              {/* Left: Document Title */}
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <FileText className="h-4 w-4 text-teal-400 flex-none" />
+                <span className="font-semibold truncate max-w-[150px] sm:max-w-xs text-slate-200">{activeTitle}</span>
+              </div>
+
+              {/* Center: Page Controls (if multi-page or image available) */}
+              {currentPageUrl && !imgError && pageCount > 1 && (
+                <div className="flex items-center gap-1 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 flex-none">
                   <button
                     type="button"
                     disabled={pageIndex <= 0}
                     onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
-                    className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-0.5 rounded text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                     title="Previous Page"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-3.5 w-3.5" />
                   </button>
-                  <span className="font-medium">
-                    Page <span className="px-2 py-0.5 rounded border border-slate-750 bg-slate-950 font-mono mx-1 text-white">{pageIndex + 1}</span> of {pageCount}
+                  <span className="font-mono text-[11px] text-slate-300">
+                    {pageIndex + 1}/{pageCount}
                   </span>
                   <button
                     type="button"
                     disabled={pageIndex >= pageCount - 1}
                     onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
-                    className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-0.5 rounded text-slate-300 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                     title="Next Page"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
+              )}
 
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setZoom(Math.max(0.5, zoom - 0.1))}
-                    className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-white/10"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut className="h-4 w-4" />
-                  </button>
-                  <span className="w-12 text-center font-mono font-medium text-white">
-                    {Math.round(zoom * 100)}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setZoom(Math.min(2.5, zoom + 0.1))}
-                    className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-white/10"
-                    title="Zoom In"
-                  >
-                    <ZoomIn className="h-4 w-4" />
-                  </button>
-                </div>
+              {/* Right: Zoom & Download Controls */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-none">
+                {currentPageUrl && !imgError && (
+                  <div className="flex items-center gap-0.5 bg-slate-950/80 border border-slate-800 rounded-lg px-1.5 py-1">
+                    <button
+                      type="button"
+                      onClick={() => setZoom((z) => Math.max(0.5, Math.round((z - 0.1) * 10) / 10))}
+                      className="p-1 rounded text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="px-1.5 py-0.5 font-mono text-[11px] font-bold text-teal-300">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setZoom((z) => Math.min(2.5, Math.round((z + 0.1) * 10) / 10))}
+                      className="p-1 rounded text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZoom(1)}
+                      className="p-1 rounded text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer ml-0.5"
+                      title="Fit to Screen (100%)"
+                      aria-label="Fit to Screen"
+                    >
+                      <Scan className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <a
+                  href={fileUrl}
+                  download={activeTitle}
+                  className="inline-flex items-center gap-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
+                  title="Download Document"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Download</span>
+                </a>
               </div>
-            )}
+            </div>
 
-            {/* Embedded iFrame Viewer / Image Canvas / Loading / Error States */}
-            <div className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center overflow-hidden">
+            {/* Embedded Viewer / Image Canvas */}
+            <div className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center overflow-hidden min-w-0">
               {loading ? (
                 <div className="flex flex-col items-center gap-3 text-slate-400">
                   <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
@@ -443,25 +470,30 @@ export function DocumentPreviewModal({
                   </div>
                 </div>
               ) : currentPageUrl && !imgError ? (
-                /* Custom Premium Image Viewer with Touch Pinch & Mouse Wheel zoom in Modal */
+                /* Custom Premium Image Viewer with Isolated Canvas Zoom */
                 <div
                   ref={containerRef}
-                  onTouchStart={handleTouchStart}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
-                  className="w-full h-full overflow-auto flex items-start justify-center p-6 scrollbar-thin"
+                  className="w-full h-full overflow-auto p-4 sm:p-6 scrollbar-thin flex min-w-0"
                 >
-                  <div
-                    className="transition-transform duration-200 origin-top"
-                    style={{ transform: `scale(${zoom})` }}
-                  >
-                    <img
-                      src={currentPageUrl}
-                      alt={activeTitle}
-                      onError={() => setImgError(true)}
-                      className="shadow-2xl border border-slate-800 rounded max-w-full h-auto bg-white"
-                      style={{ minWidth: '600px' }}
-                    />
+                  <div className="m-auto flex flex-col items-center justify-center transition-all duration-150">
+                    <div
+                      className="transition-transform duration-150"
+                      style={{
+                        transform: `scale(${zoom})`,
+                        transformOrigin: zoom > 1 ? 'top left' : 'center center',
+                        marginTop: zoom > 1 ? `${(zoom - 1) * 180}px` : 0,
+                        marginBottom: zoom > 1 ? `${(zoom - 1) * 180}px` : 0,
+                        marginLeft: zoom > 1 ? `${(zoom - 1) * 180}px` : 0,
+                        marginRight: zoom > 1 ? `${(zoom - 1) * 180}px` : 0,
+                      }}
+                    >
+                      <img
+                        src={currentPageUrl}
+                        alt={activeTitle}
+                        onError={() => setImgError(true)}
+                        className="shadow-2xl border border-slate-800 rounded-lg max-w-[85vw] sm:max-w-3xl h-auto bg-white block"
+                      />
+                    </div>
                   </div>
                 </div>
               ) : blobUrl ? (

@@ -57,6 +57,16 @@ export interface RecentClaimSummary {
   progress?: { percentage: number; step: string };
 }
 
+export const PIPELINE_ACTIVE_STATUSES = new Set([
+  "UPLOADED",
+  "PROCESSING",
+  "OCR_PROCESSING",
+  "OCR_DONE",
+  "PARSING",
+  "PARSED",
+  "PREDICTED",
+]);
+
 /**
  * Check if a claim ID is a local mock/demo ID (e.g., demo-001, CLM-123456)
  * to avoid issuing bad requests to the backend server.
@@ -215,28 +225,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
   }
 
   try {
-    // 1. Query live ingress status endpoint first (returns live Celery percentage & active step)
-    const statusRes = await safeFetch(`${INGRESS_API}/claims/${claimId}/status?t=${Date.now()}`, {
-      cache: "no-store",
-      headers: getAuthHeaders(),
-    }, 2500);
-    if (statusRes && statusRes.ok) {
-      const data = await statusRes.json();
-      let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
-      const stepStr = (data.current_step || data.step || "").toUpperCase();
-      const statusStr = (data.status || "").toUpperCase();
-      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
-
-      if (isComplete) {
-        return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
-      }
-
-      if (pct > 0 || statusStr === "PROCESSING") {
-        return { percentage: Math.max(pct, 20), step: stepStr || "OCR", status: statusStr || "PROCESSING", is_complete: false };
-      }
-    }
-
-    // 2. Query live ingress progress endpoint
+    // 1. Query live ingress progress endpoint (matches port 3000 exact implementation)
     const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, {
       cache: "no-store",
       headers: getAuthHeaders(),
@@ -244,7 +233,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
     if (res && res.ok) {
       const data = await res.json();
       let pct = typeof data.percentage === "number" ? data.percentage : 0;
-      const stepStr = (data.current_step || data.step || "").toUpperCase();
+      const stepStr = data.step || data.current_step || "";
       const statusStr = (data.status || "").toUpperCase();
       const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
 
@@ -252,27 +241,41 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
         return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
       }
 
-      if (pct > 0 || statusStr === "PROCESSING") {
-        return { percentage: Math.max(pct, 20), step: stepStr || "OCR", status: statusStr || "PROCESSING", is_complete: false };
-      }
+      return {
+        percentage: Math.max(pct, 20),
+        step: stepStr || (statusStr === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"),
+        status: statusStr || "UPLOADED",
+        is_complete: false,
+      };
     }
 
-    // 3. Fallback: check if preview endpoint reports an explicit completed/validated status
-    const prevRes = await safeFetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, {
+    // 2. Query live ingress status endpoint
+    const statusRes = await safeFetch(`${INGRESS_API}/claims/${claimId}/status?t=${Date.now()}`, {
       cache: "no-store",
       headers: getAuthHeaders(),
     }, 2500);
-    if (prevRes && prevRes.ok) {
-      const prevData = await prevRes.json();
-      const statusStr = (prevData.status || "").toUpperCase();
-      if (statusStr === "COMPLETED" || statusStr === "VALIDATED") {
+    if (statusRes && statusRes.ok) {
+      const data = await statusRes.json();
+      let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
+      const stepStr = data.current_step || data.step || "";
+      const statusStr = (data.status || "").toUpperCase();
+      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
+
+      if (isComplete) {
         return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
       }
+
+      return {
+        percentage: Math.max(pct, 20),
+        step: stepStr || "OCR (extracting text)",
+        status: statusStr || "UPLOADED",
+        is_complete: false,
+      };
     }
   } catch (err) {
     /* safe catch */
   }
-  return { percentage: 20, step: "OCR", status: "PROCESSING", is_complete: false };
+  return { percentage: 20, step: "OCR (extracting text)", status: "UPLOADED", is_complete: false };
 }
 
 /**
@@ -284,6 +287,17 @@ export async function fetchClaimPreview(claimId: string): Promise<RealClaimPrevi
     return {
       claim_id: claimId,
       status: "COMPLETED",
+      summary: {
+        patient_name: "Damien Hoeger",
+        age: "38",
+        gender: "Male",
+        admission_date: "10/06/2026",
+        discharge_date: "14/06/2026",
+        hospital: "City Care Multispeciality Hospital",
+        diagnosis: "Typhoid Fever",
+        total_amount: "125461",
+        risk_score: 8,
+      },
       parsed_fields: {
         patient_name: "Binod Kumar",
         hospital_name: "PREMIER HOSPITALS",
@@ -320,17 +334,6 @@ export async function fetchClaimPreview(claimId: string): Promise<RealClaimPrevi
         { rule_name: "IRDAI Clause 4.2", severity: "LOW", message: "Billing aligns with hospital schedule of charges", passed: true },
         { rule_name: "Identity Verification", severity: "LOW", message: "Aadhaar Card name matched patient admission record", passed: true },
       ],
-      summary: {
-        patient_name: "Binod Kumar",
-        age: "38",
-        gender: "Male",
-        admission_date: "14-07-2023",
-        discharge_date: "19-07-2023",
-        hospital: "PREMIER HOSPITALS",
-        diagnosis: "Typhoid Fever",
-        total_amount: "125461",
-        risk_score: 8,
-      },
     };
   }
 
@@ -381,8 +384,8 @@ export async function fetchRecentClaims(): Promise<RecentClaimSummary[]> {
     const claims = data.claims || data.results || (Array.isArray(data) ? data : []);
     return claims.map((c: any) => ({
       id: c.id || c.claim_id || "CLM-001",
-      patient_name: c.patient_name || c.name || c.summary?.patient_name || "Binod Kumar",
-      status: c.status || "COMPLETED",
+      patient_name: c.patient_name || c.name || c.summary?.patient_name || (c.documents && c.documents.length > 0 ? c.documents[0].file_name : "Claim Record"),
+      status: (c.status || "UPLOADED").toUpperCase(),
       created_at: c.created_at || "Recent",
       total_amount: c.total_amount || c.amount || "",
       documents: c.documents && c.documents.length > 0 ? c.documents : [

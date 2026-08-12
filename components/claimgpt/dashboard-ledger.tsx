@@ -41,6 +41,7 @@ import {
   formatINR,
   useAuditorState,
 } from '@/components/claimgpt/use-auditor-state';
+import { PIPELINE_ACTIVE_STATUSES } from '@/lib/api-client';
 import {
   CountUp,
   StaggerContainer,
@@ -176,9 +177,12 @@ export function DashboardLedger() {
                       const isSelected = claim.id === s.claimId;
                       const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                       const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
-                      const isClaimProcessing = isSelected && s.analyzing;
-                      const currentProgress = isClaimProcessing ? s.progress : 100;
-                      const currentStep = isClaimProcessing ? (s.stepDescription || "Parsing (LLM agent reading document) · 55%") : "Completed";
+                      const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
+                      const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing);
+                      const currentProgress = isSelected && s.analyzing ? s.progress : (claim.progress?.percentage || (claim.status === "UPLOADED" ? 20 : 55));
+                      const currentStep = isSelected && s.analyzing
+                        ? (s.stepDescription || `${claim.status === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"} - ${currentProgress}%`)
+                        : (claim.progress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${currentProgress}%`));
 
                       return (
                         <button
@@ -264,7 +268,7 @@ export function DashboardLedger() {
                               <div className="flex items-center justify-between text-[10px]">
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold px-2 py-0.2 text-[9px]">
                                   <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
-                                  Parsing
+                                  {claim.status === "UPLOADED" ? "Uploaded" : "Parsing"}
                                 </span>
                                 <span className="font-mono font-bold text-amber-400">{currentProgress}%</span>
                               </div>
@@ -443,6 +447,138 @@ export function DashboardLedger() {
                 </div>
               </StaggerItem>
 
+              {/* Mobile Only: Processed Claims History Selector */}
+              {hasActiveClaim && (
+                <StaggerItem index={3} className="block lg:hidden">
+                  <div className="rounded-xl border border-amber-500/25 bg-[#0a1226]/90 p-4 shadow-xl backdrop-blur-xl">
+                    <div className="mb-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/20 text-amber-400">
+                          <Clock className="h-3.5 w-3.5" />
+                        </div>
+                        <h3 className="text-xs font-bold text-white uppercase tracking-wider">Processed Claims History</h3>
+                      </div>
+                      <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300 border border-amber-500/30">
+                        {s.recentClaims.length || 1} Claims
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin snap-x">
+                      {s.recentClaims.length === 0 ? (
+                        s.claimId ? (
+                          <button
+                            type="button"
+                            onClick={() => s.selectClaim(s.claimId || "")}
+                            className="flex-none snap-start rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-2 text-left shadow-sm min-w-[150px]"
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-xs font-bold truncate text-white">{s.patientName || "Patient Record"}</p>
+                              <span className="flex h-2 w-2 rounded-full bg-emerald-400 flex-none" />
+                            </div>
+                            <p className="text-[10px] text-amber-300/60 mt-0.5 truncate">
+                              ID: {s.claimId.slice(0, 8)}...
+                            </p>
+                          </button>
+                        ) : (
+                          <p className="text-xs text-slate-400 italic py-1 px-1">No uploaded claims present</p>
+                        )
+                      ) : (
+                        s.recentClaims.map((claim) => {
+                          const isSelected = claim.id === s.claimId;
+                          const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
+                          const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
+                          const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
+                          const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing);
+                          const currentProgress = isSelected && s.analyzing ? s.progress : (claim.progress?.percentage || (claim.status === "UPLOADED" ? 20 : 55));
+                          const currentStep = isSelected && s.analyzing
+                            ? (s.stepDescription || `${claim.status === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"} - ${currentProgress}%`)
+                            : (claim.progress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${currentProgress}%`));
+                          const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
+
+                          return (
+                            <div
+                              key={claim.id}
+                              onClick={() => s.selectClaim(claim.id)}
+                              className={cn(
+                                "flex-none snap-start rounded-2xl border p-3 text-left transition-all tap-highlight-none min-w-[220px] max-w-[260px] space-y-2 cursor-pointer",
+                                isSelected
+                                  ? "border-amber-400/60 bg-amber-950/40 shadow-lg ring-1 ring-amber-400/40"
+                                  : "border-slate-800 bg-[#060b18]/80 hover:bg-[#0c142b] shadow-2xs"
+                              )}
+                            >
+                              <div className="flex items-center justify-between gap-1 text-[10px]">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="rounded bg-amber-950/80 text-amber-300 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-amber-800/60">
+                                    #{shortId || "CLM001"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 flex-none">
+                                  {isClaimProcessing ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 text-[9px] border border-amber-500/40">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping" />
+                                      {claim.status === "UPLOADED" ? "OCR" : "Parsing"}
+                                    </span>
+                                  ) : (
+                                    <span className="rounded-full bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 text-[9px] font-bold border border-emerald-500/30">
+                                      ✓ Ready
+                                    </span>
+                                  )}
+                                  <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setClaimToDelete({ id: claim.id, name: claimName });
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.stopPropagation();
+                                        setClaimToDelete({ id: claim.id, name: claimName });
+                                      }
+                                    }}
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                    title="Delete claim"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate text-white">
+                                  {claimName}
+                                </p>
+                                {docs.length > 0 && (
+                                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                    {docs[0].file_name} {docs.length > 1 ? `+${docs.length - 1} more` : ''}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Progress bar if actively processing */}
+                              {isClaimProcessing ? (
+                                <div className="space-y-1 pt-1 border-t border-amber-500/20">
+                                  <div className="flex items-center justify-between text-[10px] font-semibold text-amber-200">
+                                    <span className="truncate pr-1">{currentStep}</span>
+                                    <span className="font-mono font-bold text-amber-300">{currentProgress}%</span>
+                                  </div>
+                                  <div className="h-1.5 w-full rounded-full bg-[#060b18] overflow-hidden border border-amber-500/20">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-300"
+                                      style={{ width: `${Math.max(currentProgress, 10)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </StaggerItem>
+              )}
+
               {/* WHEN NO CLAIM IS PRESENT: Show Executive Onboarding Guide */}
               {!hasActiveClaim ? (
                 <StaggerItem index={3}>
@@ -512,29 +648,47 @@ export function DashboardLedger() {
                   {/* Live Pipeline Processing Tracker */}
                   <StaggerItem index={3}>
                     <div className="rounded-2xl border border-amber-500/25 bg-[#0a1226]/90 p-4 shadow-xl shadow-amber-500/5 backdrop-blur-xl">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className="text-xs font-bold text-white uppercase tracking-wider">Processing Pipeline</span>
-                          <p className="text-[10px] text-amber-300/60">Claim ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "CLM-2026-08842"}</p>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-bold text-white uppercase tracking-wider truncate block">Processing Pipeline</span>
+                          <p className="text-[10px] text-amber-300/60 truncate font-mono">Claim ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "CLM-2026-08842"}</p>
                         </div>
-                        <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                          {s.isDocumentsRequested ? (
-                            <>
-                              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-                              <span className="text-amber-400">PAUSED — ACTION REQUIRED</span>
-                            </>
-                          ) : s.nameMismatchWarning ? (
-                            <>
-                              <AlertTriangle className="h-3.5 w-3.5 text-rose-400 animate-pulse" />
-                              <span className="text-rose-400">PAUSED — NAME MISMATCH</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" />
-                              <span>{s.progress}% COMPLETE</span>
-                            </>
-                          )}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-none">
+                          <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                            {s.isDocumentsRequested ? (
+                              <>
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                                <span className="text-amber-400">ACTION REQUIRED</span>
+                              </>
+                            ) : s.nameMismatchWarning ? (
+                              <>
+                                <AlertTriangle className="h-3.5 w-3.5 text-rose-400 animate-pulse" />
+                                <span className="text-rose-400">NAME MISMATCH</span>
+                              </>
+                            ) : s.progress >= 100 ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" />
+                                <span>100% COMPLETE</span>
+                              </>
+                            ) : (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin" />
+                                <span>{s.progress}% PROCESSING</span>
+                              </>
+                            )}
+                          </span>
+
+                          {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && !s.nameMismatchWarning ? (
+                            <Button
+                              onClick={s.openReportModal}
+                              size="sm"
+                              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-[11px] sm:text-xs font-bold text-slate-950 h-7 sm:h-8 px-2.5 sm:px-3 rounded-lg shadow-md border border-amber-400/30 cursor-pointer flex items-center gap-1"
+                            >
+                              <FileText className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                              <span>View Report</span>
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
 
                       {/* Progress Bar */}
@@ -550,15 +704,76 @@ export function DashboardLedger() {
                             style={{ width: `${s.progress}%` }}
                           />
                         </div>
-                        <div className="flex justify-between text-[10px] font-bold text-amber-300/70 px-0.5">
-                          <span>0%</span>
-                          <span className="font-extrabold text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.2 rounded-full">{s.progress >= 100 ? "100% Complete" : (s.stepDescription || `${s.progress}% Active Stage`)}</span>
-                          <span className="text-amber-400">100%</span>
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {s.progress < 100 && !s.isDocumentsRequested && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping flex-none" />
+                            )}
+                            <span className="text-[11px] font-semibold text-slate-300 truncate">
+                              {s.progress >= 100 ? "AI Verification Complete" : (s.stepDescription || "Analyzing documents...")}
+                            </span>
+                          </div>
+                          <span className="font-mono font-extrabold text-[11px] text-amber-300 bg-amber-500/20 border border-amber-500/30 px-2 py-0.2 rounded-full flex-none">
+                            {s.progress}%
+                          </span>
                         </div>
                       </div>
 
-                      {/* 5-Step Pipeline Badges */}
-                      <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1">
+                      {/* 5-Stage Stepper Tracker */}
+                      {/* Mobile: Connected Stepper Track */}
+                      <div className="sm:hidden pt-3 border-t border-white/10">
+                        <div className="relative flex items-center justify-between px-1">
+                          {/* Connecting Background Track */}
+                          <div className="absolute left-4 right-4 top-3.5 h-0.5 bg-slate-800 -z-0" />
+                          <div
+                            className="absolute left-4 top-3.5 h-0.5 bg-gradient-to-r from-amber-400 to-amber-600 transition-all duration-500 -z-0"
+                            style={{
+                              width: s.progress >= 100
+                                ? 'calc(100% - 32px)'
+                                : `${Math.min(100, Math.max(0, (s.stageIndex / 4) * 100))}%`,
+                            }}
+                          />
+
+                          {PIPELINE.map((stage, i) => {
+                            const done = i < s.stageIndex || s.progress >= 100;
+                            const current = i === s.stageIndex && s.progress < 100;
+                            const shortLabels = ['Attached', 'OCR Text', 'Parsing', 'Coding', 'Settled'];
+
+                            return (
+                              <button
+                                key={stage.key}
+                                type="button"
+                                onClick={() => s.setActiveStage(stage.key)}
+                                className="relative z-10 flex flex-col items-center gap-1 tap-highlight-none group cursor-pointer focus:outline-none"
+                              >
+                                <div
+                                  className={cn(
+                                    "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold transition-all shadow-xs",
+                                    done && "bg-amber-500 text-slate-950 shadow-amber-500/30",
+                                    current && "bg-amber-400 text-slate-950 ring-4 ring-amber-400/30 animate-pulse scale-110 shadow-lg shadow-amber-500/40",
+                                    !done && !current && "bg-[#060b18] text-slate-500 border border-slate-700"
+                                  )}
+                                >
+                                  {done ? <Check className="h-3 w-3" /> : i + 1}
+                                </div>
+                                <span
+                                  className={cn(
+                                    "text-[9px] font-semibold text-center leading-tight tracking-tight",
+                                    current && "font-bold text-amber-300",
+                                    done && "text-slate-300",
+                                    !done && !current && "text-slate-500"
+                                  )}
+                                >
+                                  {shortLabels[i] || stage.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Desktop: 5-Step Pipeline Badges */}
+                      <div className="hidden sm:flex flex-wrap items-center justify-between gap-1.5 pt-3 border-t border-white/10">
                         {PIPELINE.map((p, i) => {
                           const isDone = i <= s.stageIndex;
                           return (
@@ -649,7 +864,7 @@ export function DashboardLedger() {
                           <h2 className="text-sm font-bold text-white">Auditor Workspace &amp; Document Preview</h2>
                           <p className="text-[11px] text-amber-300/60">Extracted data &amp; bounding box highlights for selected claim.</p>
                         </div>
-                        {!s.isDocumentsRequested && (
+                        {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && (
                           <Button onClick={s.openReportModal} className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-xs font-bold text-slate-950 h-9 px-4 rounded-xl shadow-md border border-amber-400/30 cursor-pointer">
                             <FileText className="mr-1.5 h-3.5 w-3.5" /> Full Audit Report
                           </Button>
@@ -657,8 +872,8 @@ export function DashboardLedger() {
                       </div>
 
                       {/* Split View: Document Viewer + Metadata */}
-                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                        <div className="rounded-xl border border-amber-500/20 bg-[#060b18] p-2 overflow-hidden min-h-[380px] flex flex-col">
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:h-[560px] min-h-[500px]">
+                        <div className="rounded-xl border border-amber-500/20 bg-[#060b18] p-2 overflow-hidden h-full flex flex-col">
                           <DocumentViewer
                             claimId={s.claimId}
                             zoom={s.zoom}
@@ -670,6 +885,7 @@ export function DashboardLedger() {
                             onSelectDocument={s.setActiveDocumentId}
                             onOpenDocModal={s.openDocModal}
                             dark={true}
+                            className="h-full"
                           />
                         </div>
 
@@ -705,31 +921,33 @@ export function DashboardLedger() {
                               <span className="font-bold text-white uppercase tracking-wider text-[11px]">Itemized Expenses</span>
                               <span className="text-[10px] text-amber-300/60">Hover row to locate in document</span>
                             </div>
-                            <div className="overflow-x-auto rounded-lg border border-amber-500/20 bg-[#060b18]">
-                              <table className="w-full text-left text-[11px]">
-                                <thead className="border-b border-amber-500/20 text-amber-300/70 uppercase bg-[#0a1226] text-[10px]">
-                                  <tr>
-                                    <th className="py-1.5 px-2.5">Category</th>
-                                    <th className="py-1.5 px-2.5">Description</th>
-                                    <th className="py-1.5 px-2.5 text-right">Amount</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-amber-500/10">
-                                  {s.lineItems.map((item) => (
-                                    <tr key={item.id} className="hover:bg-amber-500/15 cursor-pointer transition-colors">
-                                      <td className="py-1.5 px-2.5 font-semibold text-slate-200">{item.category}</td>
-                                      <td className="py-1.5 px-2.5 text-slate-400 truncate max-w-[120px]">{item.description}</td>
-                                      <td className="py-1.5 px-2.5 text-right font-bold text-amber-400">{formatINR(item.amount)}</td>
+                            <div className="overflow-hidden rounded-lg border border-amber-500/20 bg-[#060b18]">
+                              <div className="max-h-[280px] overflow-y-auto scrollbar-thin">
+                                <table className="w-full text-left text-[11px]">
+                                  <thead className="border-b border-amber-500/20 text-amber-300/70 uppercase bg-[#0a1226] text-[10px] sticky top-0 z-10">
+                                    <tr>
+                                      <th className="py-1.5 px-2.5 bg-[#0a1226]">Category</th>
+                                      <th className="py-1.5 px-2.5 bg-[#0a1226]">Description</th>
+                                      <th className="py-1.5 px-2.5 text-right bg-[#0a1226]">Amount</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot>
-                                  <tr className="border-t border-amber-500/20 font-bold bg-[#0a1226] text-xs">
-                                    <td colSpan={2} className="py-2 px-2.5 text-white">Total Claim Amount</td>
-                                    <td className="py-2 px-2.5 text-right text-amber-400">{formatINR(s.total)}</td>
-                                  </tr>
-                                </tfoot>
-                              </table>
+                                  </thead>
+                                  <tbody className="divide-y divide-amber-500/10">
+                                    {s.lineItems.map((item) => (
+                                      <tr key={item.id} className="hover:bg-amber-500/15 cursor-pointer transition-colors">
+                                        <td className="py-1.5 px-2.5 font-semibold text-slate-200">{item.category}</td>
+                                        <td className="py-1.5 px-2.5 text-slate-400 truncate max-w-[120px]">{item.description}</td>
+                                        <td className="py-1.5 px-2.5 text-right font-bold text-amber-400">{formatINR(item.amount)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot className="sticky bottom-0 z-10">
+                                    <tr className="border-t border-amber-500/20 font-bold bg-[#0a1226] text-xs">
+                                      <td colSpan={2} className="py-2 px-2.5 text-white bg-[#0a1226]">Total Claim Amount</td>
+                                      <td className="py-2 px-2.5 text-right text-amber-400 bg-[#0a1226]">{formatINR(s.total)}</td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
                             </div>
                           </div>
                         </div>

@@ -21,11 +21,11 @@ import {
   Download,
   ZoomIn,
   ZoomOut,
-  RotateCcw,
   Maximize2
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR } from '@/lib/claimgpt-data';
+import { cn } from '@/lib/utils';
 
 interface ExpenseItem {
   id: string;
@@ -40,9 +40,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     title: string;
     type: 'tpa' | 'irdai';
   } | null>(null);
-  const [pdfZoom, setPdfZoom] = useState<number>(1);
-  const pdfTouchStartDistRef = useRef<number>(0);
-  const pdfTouchStartZoomRef = useRef<number>(1);
 
   // Editable Form State
   const [patientName, setPatientName] = useState(s.patientName || 'N/A');
@@ -146,39 +143,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const tpaUrl = s.tpaPdfViewUrl || s.tpaPdfUrl;
   const irdaUrl = s.irdaPdfViewUrl || s.irdaPdfUrl;
 
-  /* On-Screen In-Memory PDF Viewer (Opens directly on screen, no new tabs) */
-  const handlePdfTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      pdfTouchStartDistRef.current = dist;
-      pdfTouchStartZoomRef.current = pdfZoom;
-    }
-  };
-
-  const handlePdfTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2 && pdfTouchStartDistRef.current > 0) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const ratio = dist / pdfTouchStartDistRef.current;
-      const nextZoom = Math.max(0.6, Math.min(2.5, Math.round(pdfTouchStartZoomRef.current * ratio * 100) / 100));
-      setPdfZoom(nextZoom);
-    }
-  };
-
-  const handlePdfTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length < 2) {
-      pdfTouchStartDistRef.current = 0;
-    }
-  };
-
   const openInlinePdfViewer = async (url: string, type: 'tpa' | 'irdai') => {
     setLoadingPdf(type);
-    setPdfZoom(1);
     const title = type === 'tpa' ? 'TPA Comprehensive Audit Report' : 'IRDAI Standardized Claim Form';
     try {
       const res = await fetch(url);
@@ -200,7 +166,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       URL.revokeObjectURL(inlinePdf.url);
     }
     setInlinePdf(null);
-    setPdfZoom(1);
   };
 
   const handleSaveDetails = () => {
@@ -721,61 +686,34 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
       {/* 8. 📄 ON-SCREEN EMBEDDED PDF VIEWER (Opens directly on screen, NO separate tab opened) */}
       {inlinePdf ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-2 sm:p-4 animate-fade-in">
-          <div className="relative w-full max-w-5xl h-[94vh] flex flex-col rounded-2xl border border-white/15 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-1.5 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-5xl h-[96vh] sm:h-[94vh] flex flex-col rounded-2xl border border-white/15 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
             {/* Header */}
-            <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-4 sm:px-6 py-3 backdrop-blur-md">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-3 sm:px-6 py-2.5 sm:py-3 backdrop-blur-md">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={closeInlinePdf}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+                  className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
                   title="Back to Audit Report"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm sm:text-base font-bold text-white truncate">
+                    <h3 className="text-xs sm:text-base font-bold text-white truncate">
                       {inlinePdf.title}
                     </h3>
-                    <span className="hidden sm:inline-flex items-center rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[10px] font-semibold text-teal-300">
-                      ON-SCREEN PREVIEW
+                    <span className="hidden sm:inline-flex items-center rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[10px] font-semibold text-teal-300 flex-none">
+                      PREVIEW
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 truncate">Claim ID: {s.claimId || 'N/A'}</p>
+                  <p className="text-[10px] sm:text-xs text-slate-400 truncate">Claim ID: {s.claimId || 'N/A'}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                {/* Dedicated Mobile & Desktop Zoom Toolbar */}
-                <div className="flex items-center gap-1 bg-slate-800/90 border border-white/10 rounded-xl px-1.5 sm:px-2 py-1">
-                  <button
-                    type="button"
-                    onClick={() => setPdfZoom((z) => Math.max(0.6, Math.round((z - 0.2) * 10) / 10))}
-                    className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPdfZoom(1)}
-                    className="px-1.5 py-0.5 rounded font-mono text-[11px] font-bold text-teal-300 hover:text-white hover:bg-white/10 transition-all"
-                    title="Reset Zoom (100%)"
-                  >
-                    {Math.round(pdfZoom * 100)}%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPdfZoom((z) => Math.min(2.5, Math.round((z + 0.2) * 10) / 10))}
-                    className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                    title="Zoom In"
-                  >
-                    <ZoomIn className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
+               <div className="flex items-center gap-1.5 sm:gap-2 flex-none ml-2">
+                {/* Download PDF Button */}
                 <a
                   href={inlinePdf.url}
                   download={`${inlinePdf.type === 'tpa' ? 'TPA_Report' : 'IRDAI_Form'}_${s.claimId || 'claim'}.pdf`}
@@ -785,6 +723,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   <Download className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Download</span>
                 </a>
+
+                {/* Close Button */}
                 <button
                   type="button"
                   onClick={closeInlinePdf}
@@ -796,62 +736,14 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               </div>
             </div>
 
-            {/* Embedded PDF container with mobile touch pinch-to-zoom & pan */}
-            <div
-              className="flex-1 w-full h-full bg-slate-950 relative overflow-auto p-1 sm:p-2 scrollbar-thin"
-              onTouchStart={handlePdfTouchStart}
-              onTouchMove={handlePdfTouchMove}
-              onTouchEnd={handlePdfTouchEnd}
-            >
-              <div
-                className="transition-transform duration-150 origin-top flex justify-center w-full min-h-full"
-                style={{
-                  transform: `scale(${pdfZoom})`,
-                  width: pdfZoom > 1 ? `${pdfZoom * 100}%` : '100%',
-                  minWidth: pdfZoom > 1 ? `${pdfZoom * 100}%` : '100%',
-                }}
-              >
+            {/* Embedded PDF container with 100% native vector crispness */}
+            <div className="flex-1 w-full h-full bg-slate-950 relative overflow-hidden p-2 sm:p-4 flex flex-col items-center justify-center min-w-0">
+              <div className="w-full max-w-4xl h-full flex flex-col items-center justify-center">
                 <iframe
-                  src={inlinePdf.url}
+                  src={`${inlinePdf.url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
                   title={inlinePdf.title}
-                  className="w-full h-full min-h-[78vh] border-0 bg-slate-950 rounded-lg"
+                  className="w-full h-full min-h-[78vh] sm:min-h-[82vh] border-0 bg-slate-950 rounded-xl shadow-2xl"
                 />
-              </div>
-
-              {/* Floating Mobile Quick-Zoom Bar (Floating Bottom Pill) */}
-              <div className="sm:hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-slate-900/95 border border-white/25 px-3 py-1.5 backdrop-blur-xl shadow-2xl z-30">
-                <button
-                  type="button"
-                  onClick={() => setPdfZoom((z) => Math.max(0.6, Math.round((z - 0.2) * 10) / 10))}
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
-                  title="Zoom Out"
-                >
-                  <ZoomOut className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPdfZoom(1)}
-                  className="px-2 py-0.5 rounded-full text-xs font-mono font-bold text-teal-300 hover:text-white"
-                  title="Reset 100%"
-                >
-                  {Math.round(pdfZoom * 100)}%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPdfZoom((z) => Math.min(2.5, Math.round((z + 0.2) * 10) / 10))}
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all active:scale-90"
-                  title="Zoom In"
-                >
-                  <ZoomIn className="h-3.5 w-3.5" />
-                </button>
-                <div className="h-4 w-px bg-white/20 mx-0.5" />
-                <button
-                  type="button"
-                  onClick={() => setPdfZoom((z) => (z >= 1.4 ? 1 : 1.5))}
-                  className="px-2.5 py-1 rounded-full text-[10px] font-bold text-slate-200 bg-white/10 hover:bg-white/20 active:scale-95 transition-all"
-                >
-                  {pdfZoom >= 1.4 ? 'Fit Page' : 'Enlarge (150%)'}
-                </button>
               </div>
             </div>
           </div>
