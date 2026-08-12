@@ -129,7 +129,7 @@ async function safeFetch(url: string, options?: RequestInit, timeoutMs = 8000): 
 /**
  * Upload a document with offline fallback support
  */
-export async function uploadClaimDocument(files: File | File[], userName?: string, claimId?: string): Promise<{ claim_id: string; document_id: string }> {
+export async function uploadClaimDocument(files: File | File[], userName?: string, claimId?: string): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null }> {
   const fileArray = Array.isArray(files) ? files : [files];
   const fileNames = fileArray.map(f => f.name.toLowerCase());
   const fallbackClaimId = `CLM-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -196,7 +196,12 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
           }
         }
       }
-      return { claim_id: finalClaimId, document_id: finalDocId };
+      return { 
+        claim_id: finalClaimId, 
+        document_id: finalDocId,
+        status: data.status,
+        task_id: data.task_id
+      };
     }
   } catch (err) {
     /* safe catch */

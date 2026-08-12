@@ -23,6 +23,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
+import { DuplicateClaimModal } from '@/components/claimgpt/duplicate-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -738,6 +739,23 @@ export function DashboardLedger() {
 
       {/* Slide-out Sidebar Navigation Drawer */}
       <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="executive" />
+
+      {s.duplicateClaimId && (
+        <DuplicateClaimModal
+          isOpen={!!s.duplicateClaimId}
+          onClose={() => {
+            s.setDuplicateClaimId(null);
+            s.resetState();
+          }}
+          onConfirm={() => {
+            const targetId = s.duplicateClaimId;
+            s.setDuplicateClaimId(null);
+            if (targetId) {
+              s.selectClaim(targetId);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

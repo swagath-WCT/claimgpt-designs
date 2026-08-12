@@ -64,6 +64,7 @@ export function useAuditorState() {
   const [userEmail, setUserEmail] = useState<string>('user@example.com');
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState<boolean>(false);
+  const [duplicateClaimId, setDuplicateClaimId] = useState<string | null>(null);
 
   const syncUserSession = () => {
     try {
@@ -584,15 +585,21 @@ export function useAuditorState() {
     try {
       const res = await uploadClaimDocument(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), userName, (appendToActive && claimId) ? claimId : undefined);
       if (res.claim_id) {
-        activeClaimId = res.claim_id;
-        setClaimId(res.claim_id);
-
         if (res.status === "COMPLETED" || res.task_id === null) {
+          setDuplicateClaimId(res.claim_id);
+          setAnalyzing(false);
+          setUploading(false);
+          setProgress(0);
+          setActiveStage('staged');
           toast({
             title: "Duplicate Document Detected",
-            description: "This exact document has already been processed. Displaying the existing completed claim report.",
+            description: "This exact set of documents has already been processed in a previous claim.",
           });
+          return;
         }
+
+        activeClaimId = res.claim_id;
+        setClaimId(res.claim_id);
 
         // Try immediate prefetch for this claim ID
         const initialPreview = await fetchClaimPreview(res.claim_id);
@@ -731,6 +738,8 @@ export function useAuditorState() {
     setShowMenuDrawer,
     openMenuDrawer: () => setShowMenuDrawer(true),
     closeMenuDrawer: () => setShowMenuDrawer(false),
+    duplicateClaimId,
+    setDuplicateClaimId,
   };
 }
 

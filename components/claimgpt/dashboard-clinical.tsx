@@ -25,6 +25,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
+import { DuplicateClaimModal } from '@/components/claimgpt/duplicate-modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -957,6 +958,23 @@ export function DashboardClinical() {
             </div>
           </div>
         </div>
+      )}
+
+      {s.duplicateClaimId && (
+        <DuplicateClaimModal
+          isOpen={!!s.duplicateClaimId}
+          onClose={() => {
+            s.setDuplicateClaimId(null);
+            s.resetState();
+          }}
+          onConfirm={() => {
+            const targetId = s.duplicateClaimId;
+            s.setDuplicateClaimId(null);
+            if (targetId) {
+              s.selectClaim(targetId);
+            }
+          }}
+        />
       )}
     </div>
   );
