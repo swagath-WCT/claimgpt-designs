@@ -377,30 +377,7 @@ export async function authenticateWithPassword({
     // Keycloak endpoint not reachable or error — fallback to local session mode below
   }
 
-  // Fallback local session when skipping Keycloak/Entra authentication
-  const defaultOrgSlug = username.includes('@') ? username.split('@')[1].split('.')[0].toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'apollo-health';
-  const defaultOrgName = defaultOrgSlug.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-
-  const localSession: AuthSession = {
-    accessToken: `local-token-${Date.now()}`,
-    refreshToken: `local-refresh-${Date.now()}`,
-    idToken: `local-id-${Date.now()}`,
-    expiresAt: Math.floor(Date.now() / 1000) + 86400,
-    role,
-    accountRole: role === 'tpa' ? 'admin' : 'submitter',
-    organization: role === 'tpa' ? defaultOrgName : undefined,
-    organizationSlug: role === 'tpa' ? defaultOrgSlug : undefined,
-    user: {
-      email: username,
-      name: username.split('@')[0] || username,
-      preferredUsername: username,
-    },
-  };
-
-  sessionStorage.setItem(ROLE_HINT_KEY, role);
-  sessionStorage.setItem(AUTH_ACTION_KEY, 'login');
-  saveSession(localSession);
-  return localSession;
+  throw new Error('Invalid email or password.');
 }
 
 export async function registerAndSignIn({
@@ -489,7 +466,7 @@ export function getAuthRedirectPath(session: Pick<AuthSession, 'role' | 'account
     return '/app';
   }
   const slug = session.organizationSlug || (session.organization ? session.organization.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'apollo-health');
-  if (session.accountRole === 'admin' || session.role === 'tpa') {
+  if (session.accountRole === 'admin') {
     return `/${slug}/admin`;
   }
   if (session.accountRole === 'reviewer') {

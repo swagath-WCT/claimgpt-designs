@@ -284,59 +284,8 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
  * Fetch full parsed preview report safely from backend
  */
 export async function fetchClaimPreview(claimId: string): Promise<RealClaimPreview | null> {
-  // If demo / mock / offline ID, provide structured fallback preview so UI inputs are populated
   if (isMockId(claimId)) {
-    return {
-      claim_id: claimId,
-      status: "COMPLETED",
-      parsed_fields: {
-        patient_name: "Binod Kumar",
-        hospital_name: "PREMIER HOSPITALS",
-        admission_date: "14-07-2023",
-        discharge_date: "19-07-2023",
-        diagnosis: "Typhoid Fever",
-      },
-      icd_codes: [
-        { code: "A01.0", description: "Typhoid fever, unspecified", confidence: 0.96, estimated_cost: 45000 },
-        { code: "R50.9", description: "Fever, unspecified", confidence: 0.91, estimated_cost: 12000 },
-      ],
-      cpt_codes: [
-        { code: "99223", description: "Initial hospital care, high complexity", confidence: 0.94, estimated_cost: 25000 },
-        { code: "87040", description: "Blood culture for bacteria", confidence: 0.98, estimated_cost: 4500 },
-      ],
-      expenses: [
-        { category: "Room Charges - Private Room", description: "Room Charges - Private Room", amount: 30403 },
-        { category: "Nursing & Patient Care Charges", description: "Nursing & Patient Care Charges", amount: 3371 },
-        { category: "Pharmacy Charges", description: "Pharmacy Charges", amount: 5701 },
-        { category: "Laboratory Charges", description: "Laboratory Charges", amount: 12460 },
-        { category: "ECG 12-Lead", description: "ECG 12-Lead", amount: 15511 },
-        { category: "Chest X-Ray PA View", description: "Chest X-Ray PA View", amount: 6572 },
-        { category: "General Medical Consultation", description: "General Medical Consultation", amount: 51443 },
-      ],
-      expense_total: 125461,
-      billed_total: 125461,
-      predictions: [
-        {
-          rejection_score: 8,
-          top_reasons: [{ reason: "All itemized bills match discharge summary", weight: 0.08 }],
-        },
-      ],
-      validations: [
-        { rule_name: "IRDAI Clause 4.2", severity: "LOW", message: "Billing aligns with hospital schedule of charges", passed: true },
-        { rule_name: "Identity Verification", severity: "LOW", message: "Aadhaar Card name matched patient admission record", passed: true },
-      ],
-      summary: {
-        patient_name: "Binod Kumar",
-        age: "38",
-        gender: "Male",
-        admission_date: "14-07-2023",
-        discharge_date: "19-07-2023",
-        hospital: "PREMIER HOSPITALS",
-        diagnosis: "Typhoid Fever",
-        total_amount: "125461",
-        risk_score: 8,
-      },
-    };
+    return null;
   }
 
   try {
@@ -395,15 +344,12 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
     const data = await res.json();
     const claims = data.claims || data.results || (Array.isArray(data) ? data : []);
     return claims.map((c: any) => ({
-      id: c.id || c.claim_id || "CLM-001",
-      patient_name: c.patient_name || c.name || c.summary?.patient_name || "Binod Kumar",
-      status: c.status || "COMPLETED",
-      created_at: c.created_at || "Recent",
+      id: c.id || c.claim_id,
+      patient_name: c.patient_name || c.name || c.summary?.patient_name || "Processing...",
+      status: c.status || "PROCESSING",
+      created_at: c.created_at || "",
       total_amount: c.total_amount || c.amount || "",
-      documents: c.documents && c.documents.length > 0 ? c.documents : [
-        { id: "d-1", file_name: "claim95.pdf", doc_type: "hospital_bill" },
-        { id: "d-2", file_name: "aadhaar_binod_kumar.png", doc_type: "aadhaar_card" },
-      ],
+      documents: c.documents || [],
     }));
   } catch {
     return [];
@@ -417,6 +363,21 @@ export async function deleteClaimApi(claimId: string): Promise<boolean> {
   if (isMockId(claimId)) return true;
   try {
     const res = await safeFetch(`${INGRESS_API}/claims/${claimId}`, {
+      method: "DELETE",
+    }, 4000);
+    return Boolean(res && res.ok);
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Delete a specific document from a claim safely from backend
+ */
+export async function deleteClaimDocumentApi(claimId: string, docId: string): Promise<boolean> {
+  if (isMockId(claimId)) return true;
+  try {
+    const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/documents/${docId}`, {
       method: "DELETE",
     }, 4000);
     return Boolean(res && res.ok);
