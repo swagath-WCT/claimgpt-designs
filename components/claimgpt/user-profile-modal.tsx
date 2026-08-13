@@ -17,9 +17,12 @@ import {
   Phone,
   Building2,
   IndianRupee,
+  LogOut,
+  LogIn
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
-import { getStoredAuthSession } from '@/lib/auth';
+import { getStoredAuthSession, clearAuthSession } from '@/lib/auth';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 
 interface UserProfileModalProps {
@@ -39,6 +42,7 @@ export function UserProfileModal({
   userEmail,
   variant = 'neon',
 }: UserProfileModalProps) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [userMeta, setUserMeta] = useState({
     dob: '19 Aug 1990',
@@ -47,6 +51,23 @@ export function UserProfileModal({
     policyNo: 'P-0007401',
     sumInsured: '₹5,000,000',
   });
+
+  const handleLogout = () => {
+    try {
+      clearAuthSession();
+      localStorage.removeItem('claimgpt_user_name');
+      localStorage.removeItem('claimgpt_user_email');
+    } catch {
+      /* ignore */
+    }
+    onClose();
+    router.push('/login');
+  };
+
+  const handleSwitchAccount = () => {
+    onClose();
+    router.push('/login');
+  };
 
   useEffect(() => {
     try {
@@ -86,7 +107,6 @@ export function UserProfileModal({
     }
   };
 
-
   // Compute family member / patient claim list under this account
   const accountClaims = s.recentClaims.length > 0
     ? s.recentClaims
@@ -117,6 +137,7 @@ export function UserProfileModal({
       divider: 'border-cyan-500/20',
       closeBtn: 'text-cyan-300 hover:bg-cyan-500/20 hover:text-white',
       mobileBtn: 'bg-cyan-600 hover:bg-cyan-500 text-white',
+      switchAccountBtn: 'border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-200',
     },
     clinical: {
       cardBg: 'bg-white/95 border-slate-200 text-slate-900 shadow-2xl',
@@ -133,6 +154,7 @@ export function UserProfileModal({
       divider: 'border-slate-200',
       closeBtn: 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
       mobileBtn: 'bg-teal-600 hover:bg-teal-700 text-white',
+      switchAccountBtn: 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700',
     },
     executive: {
       cardBg: 'bg-[#060b18]/95 border-amber-500/30 text-amber-50 shadow-[0_0_50px_rgba(245,158,11,0.15)]',
@@ -149,6 +171,7 @@ export function UserProfileModal({
       divider: 'border-amber-500/20',
       closeBtn: 'text-amber-300 hover:bg-amber-500/20 hover:text-white',
       mobileBtn: 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold',
+      switchAccountBtn: 'border-amber-500/30 bg-amber-950/40 hover:bg-amber-900/50 text-amber-200',
     },
   }[variant];
 
@@ -310,14 +333,24 @@ export function UserProfileModal({
 
         </div>
 
-        {/* Mobile dismissal button */}
-        <div className={`p-3 border-t sm:hidden ${themeStyles.headerBg}`}>
+        {/* Modal Bottom Actions: Switch Account & Sign Out (Visible on all screen sizes) */}
+        <div className={`p-3 border-t flex items-center gap-2 ${themeStyles.headerBg}`}>
           <button
             type="button"
-            onClick={onClose}
-            className={`w-full rounded-xl py-2 text-xs font-semibold transition-all shadow-md ${themeStyles.mobileBtn}`}
+            onClick={handleSwitchAccount}
+            className={`flex-1 rounded-xl py-2 px-3 text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 ${themeStyles.switchAccountBtn}`}
           >
-            Close Profile
+            <LogIn className="h-3.5 w-3.5" />
+            <span>Switch Account</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+            <span>Sign Out</span>
           </button>
         </div>
 

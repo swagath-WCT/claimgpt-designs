@@ -50,7 +50,6 @@ import { Badge } from '@/components/ui/badge';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
 import { DocumentPreviewModal } from '@/components/claimgpt/document-preview-modal';
 import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
-import { HamburgerMenuDrawer } from '@/components/claimgpt/hamburger-menu-drawer';
 import { NotificationBell } from '@/components/claimgpt/notification-bell';
 import { CountUp, SpotlightCard, StaggerContainer, StaggerItem } from '@/components/claimgpt/effects';
 import { formatINR, useAuditorState } from '@/components/claimgpt/use-auditor-state';
@@ -670,15 +669,6 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground font-sans">
       {/* Drawer & User Profile Modals */}
-      <HamburgerMenuDrawer
-        isOpen={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        s={auditor}
-        userName={userName}
-        userEmail={userEmail}
-        onOpenProfile={() => setIsProfileOpen(true)}
-        variant="clinical"
-      />
       <UserProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
@@ -691,14 +681,6 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between gap-2 px-4 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-              aria-label="Navigation menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
               <Building2 className="h-5 w-5" />
             </div>
