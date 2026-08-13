@@ -34,7 +34,6 @@ import { DocumentViewer } from '@/components/claimgpt/document-viewer';
 import { ClaimReportModal } from '@/components/claimgpt/claim-report-modal';
 import { DocumentPreviewModal } from '@/components/claimgpt/document-preview-modal';
 import { UserProfileModal } from '@/components/claimgpt/user-profile-modal';
-import { HamburgerMenuDrawer } from '@/components/claimgpt/hamburger-menu-drawer';
 import { NotificationBell } from '@/components/claimgpt/notification-bell';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 import {
@@ -83,15 +82,6 @@ export function DashboardClinical() {
       <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <button
-              type="button"
-              onClick={s.openMenuDrawer}
-              className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-              aria-label="Open Navigation Menu"
-              title="Navigation Menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
             <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
               <ShieldCheck className="h-4 sm:h-5 w-4 sm:w-5" />
             </div>
@@ -1019,8 +1009,6 @@ export function DashboardClinical() {
       {/* User Profile & Account Submissions Modal */}
       <UserProfileModal isOpen={s.showProfileModal} onClose={s.closeProfileModal} s={s} userName={s.userName} userEmail={s.userEmail} variant="clinical" />
 
-      {/* Slide-out Sidebar Navigation Drawer */}
-      <HamburgerMenuDrawer isOpen={s.showMenuDrawer} onClose={s.closeMenuDrawer} s={s} userName={s.userName} userEmail={s.userEmail} onOpenProfile={s.openProfileModal} variant="clinical" />
 
       {/* Delete Claim Confirmation Modal */}
       {claimToDelete && (
