@@ -168,12 +168,21 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     setInlinePdf(null);
   };
 
-  const handleSaveDetails = () => {
+  const handleSaveDetails = async () => {
+    await s.saveDetails({
+      patient_name: patientName,
+      hospital_name: hospitalName,
+      total_amount: String(billedAmount),
+      admission_date: admissionDate,
+      discharge_date: dischargeDate,
+      diagnosis: diagnosis
+    });
     setDetailsSaved(true);
     setTimeout(() => setDetailsSaved(false), 2500);
   };
 
-  const handleSaveExpenses = () => {
+  const handleSaveExpenses = async () => {
+    await s.saveExpenses(expenses.map(e => ({ category: e.category, amount: e.amount })));
     setExpensesSaved(true);
     setTimeout(() => setExpensesSaved(false), 2500);
   };

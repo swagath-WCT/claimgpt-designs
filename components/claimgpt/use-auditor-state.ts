@@ -21,6 +21,8 @@ import {
   type RealClaimPreview,
   type RecentClaimSummary,
   SUBMISSION_API,
+  saveClaimExpensesApi,
+  saveClaimDetailsApi,
 } from '@/lib/api-client';
 import { getStoredAuthSession } from '@/lib/auth';
 import { toast } from '@/hooks/use-toast';
@@ -777,6 +779,48 @@ export function useAuditorState() {
     return null; // Disabled as requested to support family/third-party uploads
   }, [realPreview]);
 
+  const saveExpenses = async (expensesList: Array<{ category: string; amount: number }>) => {
+    if (!claimId) return;
+    const success = await saveClaimExpensesApi(claimId, expensesList);
+    if (success) {
+      const prevData = await fetchClaimPreview(claimId);
+      if (prevData) {
+        setRealPreview(prevData);
+      }
+      toast({
+        title: "Success",
+        description: "Expenses saved successfully.",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to save expenses.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const saveDetails = async (details: Record<string, string>) => {
+    if (!claimId) return;
+    const success = await saveClaimDetailsApi(claimId, details);
+    if (success) {
+      const prevData = await fetchClaimPreview(claimId);
+      if (prevData) {
+        setRealPreview(prevData);
+      }
+      toast({
+        title: "Success",
+        description: "Details saved successfully.",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to save details.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return {
     progress,
     setProgress,
@@ -851,6 +895,8 @@ export function useAuditorState() {
     closeMenuDrawer: () => setShowMenuDrawer(false),
     duplicateClaimId,
     setDuplicateClaimId,
+    saveExpenses,
+    saveDetails,
   };
 }
 

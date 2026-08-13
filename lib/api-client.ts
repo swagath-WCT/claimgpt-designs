@@ -430,3 +430,37 @@ export function authenticateUser(userOrEmail: string, pass: string): { success: 
 
   return { success: false, error: "Please enter your username/email and password." };
 }
+
+/**
+ * Save edited expenses for a claim
+ */
+export async function saveClaimExpensesApi(claimId: string, expenses: Array<{ category: string; amount: number }>): Promise<boolean> {
+  if (isMockId(claimId)) return true;
+  try {
+    const res = await safeFetch(`${SUBMISSION_API}/claims/${claimId}/expenses`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expenses }),
+    }, 5000);
+    return Boolean(res && res.ok);
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Save edited details/fields for a claim
+ */
+export async function saveClaimDetailsApi(claimId: string, details: Record<string, string>): Promise<boolean> {
+  if (isMockId(claimId)) return true;
+  try {
+    const res = await safeFetch(`${SUBMISSION_API}/claims/${claimId}/fields`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fields: details }),
+    }, 5000);
+    return Boolean(res && res.ok);
+  } catch (err) {
+    return false;
+  }
+}
