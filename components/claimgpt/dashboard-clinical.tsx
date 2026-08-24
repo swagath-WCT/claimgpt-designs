@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import logoMark from './ClaimsGuru Mark.png';
+import fullLogo from './ClaimsGuru Black PNG.png';
 
 import {
   AlertTriangle,
@@ -82,16 +84,11 @@ export function DashboardClinical() {
       <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="flex h-8 sm:h-9 w-8 sm:w-9 flex-none items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
-              <ShieldCheck className="h-4 sm:h-5 w-4 sm:w-5" />
-            </div>
-            <div className="flex items-center gap-1.5 whitespace-nowrap min-w-0">
-              <span className="font-display text-base sm:text-lg font-bold tracking-tight flex-none">ClaimGPT</span>
-              <span className="rounded bg-teal-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-teal-700 whitespace-nowrap flex-none">
-                <span className="hidden sm:inline">Self-Service Portal</span>
-                <span className="sm:hidden">Clinical</span>
-              </span>
-            </div>
+            <img src={fullLogo.src} className="h-7 sm:h-8 w-auto flex-none" alt="ClaimsGuru Logo" />
+            <span className="rounded bg-teal-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-teal-700 whitespace-nowrap flex-none">
+              <span className="hidden sm:inline">Self-Service Portal</span>
+              <span className="sm:hidden">Clinical</span>
+            </span>
           </div>
           <div className="relative ml-4 hidden flex-1 max-w-md md:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -325,7 +322,13 @@ export function DashboardClinical() {
                 <SpotlightCard className="bg-white p-3.5 sm:p-4 shadow-elevation-sm">
                   {/* Ultra-compact 1-line flex row for both mobile & desktop */}
                   <div
-                    onClick={s.toggleUploadOpen}
+                    onClick={() => {
+                      if (!isUploadOpenEffective && s.isLiveSessionCompleted) {
+                        s.resetState();
+                      } else {
+                        s.toggleUploadOpen();
+                      }
+                    }}
                     className="flex cursor-pointer select-none items-center justify-between gap-2 p-1"
                   >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -345,7 +348,11 @@ export function DashboardClinical() {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        s.toggleUploadOpen();
+                        if (!isUploadOpenEffective && s.isLiveSessionCompleted) {
+                          s.resetState();
+                        } else {
+                          s.toggleUploadOpen();
+                        }
                       }}
                       className="teal-gradient text-[11px] sm:text-xs font-semibold text-white shadow-sm h-8 px-3 rounded-lg flex-none cursor-pointer"
                     >
@@ -639,7 +646,7 @@ export function DashboardClinical() {
                         </div>
                         <h3 className="text-sm font-bold text-foreground">Neural OCR &amp; Table Parsing</h3>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          ClaimGPT automatically extracts patient demographics, admission/discharge dates, itemized medical lines, and ICD/CPT codes.
+                          ClaimsGuru automatically extracts patient demographics, admission/discharge dates, itemized medical lines, and ICD/CPT codes.
                         </p>
                       </div>
 

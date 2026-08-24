@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import logoMark from './ClaimsGuru Mark.png';
+import fullLogo from './ClaimsGuru Black PNG.png';
 import {
   ArrowRight,
   Eye,
@@ -79,14 +81,7 @@ export function LoginClinical() {
         <div className="relative z-10 flex flex-1 items-center justify-center px-5 py-8 sm:px-8 lg:px-16">
           <StaggerContainer className="w-full max-w-md">
             <div className="mb-8 flex items-center justify-between lg:hidden">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-elevation-sm">
-                  <ShieldCheck className="h-6 w-6" />
-                </div>
-                <div className="font-display text-lg font-semibold tracking-tight">
-                  ClaimGPT
-                </div>
-              </div>
+              <img src={fullLogo.src} className="h-8 w-auto" alt="ClaimsGuru Logo" />
               <LanguageSwitcher variant="dark" />
             </div>
             <div className="mb-8 hidden justify-end lg:flex">
@@ -102,7 +97,7 @@ export function LoginClinical() {
                   <p className="mt-2 text-sm text-muted-foreground">
                     Sign in to your{' '}
                     <GradientText className="font-semibold">
-                      ClaimGPT
+                      ClaimsGuru
                     </GradientText>{' '}
                     workspace to continue.
                   </p>
@@ -231,7 +226,7 @@ export function LoginClinical() {
                     href="/register"
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-accent"
                   >
-                    New to ClaimGPT?
+                    New to ClaimsGuru?
                     <span className="font-semibold text-accent">Create an account</span>
                     <ArrowRight className="h-3.5 w-3.5 text-accent" />
                   </Link>

@@ -1,4 +1,6 @@
 import { ShieldCheck, Sparkles } from 'lucide-react';
+import logoMark from './ClaimsGuru Mark.png';
+import fullLogo from './ClaimsGuru Black PNG.png';
 import { FEATURES, TRUST_BADGES } from '@/lib/claimgpt-data';
 
 export function BrandPanel() {
@@ -13,16 +15,11 @@ export function BrandPanel() {
       <div className="grid-pattern absolute inset-0 opacity-30" aria-hidden />
 
       <div className="relative z-10 animate-slide-up">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm ring-1 ring-white/20">
-            <ShieldCheck className="h-6 w-6" />
-          </div>
-          <div className="font-display text-lg font-semibold tracking-tight">
-            ClaimGPT
-            <span className="ml-2 rounded-md bg-white/15 px-2 py-0.5 text-xs font-medium uppercase tracking-wide">
-              Enterprise · India
-            </span>
-          </div>
+        <div className="flex flex-col items-start gap-1.5">
+          <img src={fullLogo.src} className="h-9 w-auto" alt="ClaimsGuru Logo" />
+          <span className="rounded-md bg-white/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide" style={{ marginLeft: "54px" }}>
+            Enterprise · India
+          </span>
         </div>
       </div>
 

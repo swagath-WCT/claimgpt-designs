@@ -121,7 +121,7 @@ export function RegisterOrganization() {
               Add an <GradientText>Organization</GradientText>
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Register your TPA or insurer organization to manage and review claims on ClaimGPT.
+              Register your TPA or insurer organization to manage and review claims on ClaimsGuru.
             </p>
           </StaggerItem>
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import fullLogo from './ClaimsGuru Black PNG.png';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -681,11 +682,10 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between gap-2 px-4 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
-              <Building2 className="h-5 w-5" />
-            </div>
+            <Link href="/star-health/review" className="flex items-center gap-2">
+              <img src={fullLogo.src} className="h-7 sm:h-8 w-auto flex-none" alt="ClaimsGuru Logo" />
+            </Link>
             <div className="flex items-center gap-2 min-w-0">
-              <span className="font-display text-lg font-bold tracking-tight text-slate-900">{orgDisplayName}</span>
               <span className="rounded bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-800 border border-teal-200">
                 TPA Reviewer
               </span>
@@ -1119,7 +1119,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                 )}
                               >
                                 <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-                                <span>Ask ClaimGPT AI</span>
+                                <span>Ask ClaimsGuru AI</span>
                               </button>
 
                               <Button

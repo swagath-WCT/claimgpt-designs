@@ -17,10 +17,10 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'ClaimGPT | Enterprise · India',
+  title: 'ClaimsGuru | Enterprise · India',
   description:
     'AI-powered health insurance claim reimbursement & audit platform for India. OCR, ICD-10/CPT coding, validation, TPA submission, and audit in one unified workspace.',
-  metadataBase: new URL('https://claimgpt.example.com'),
+  metadataBase: new URL('https://claimsguru.example.com'),
 };
 
 export default function RootLayout({

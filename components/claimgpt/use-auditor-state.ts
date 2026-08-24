@@ -430,7 +430,7 @@ export function useAuditorState() {
           updateProgressAndStage(100, statusUpper === "DOCUMENTS_REQUESTED" ? "Documents Requested" : "Manual Review Required");
         } else {
           setAnalyzing(false);
-          setIsLiveSessionCompleted(true);
+          setIsLiveSessionCompleted(false);
           setIsDocumentsRequested(false);
           updateProgressAndStage(100, "Claim Analysis 100% Complete");
         }

@@ -1,6 +1,6 @@
 /**
- * Resilient API client for ClaimGPT
- * Connects UI to ClaimGPT Docker backend (http://localhost:8000)
+ * Resilient API client for ClaimsGuru
+ * Connects UI to ClaimsGuru Docker backend (http://localhost:8000)
  * Includes Network Resiliency, Bearer Auth & Offline Fallback.
  */
 
@@ -182,7 +182,11 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
       if (taskId && (taskId.includes("-") || taskId.length > 8)) {
         for (let attempt = 0; attempt < 8; attempt++) {
           await new Promise(resolve => setTimeout(resolve, 250));
-          const claimsListRes = await safeFetch(`${INGRESS_API}/claims?limit=10&t=${Date.now()}`, {
+          const queryParams = new URLSearchParams({ limit: "10", t: Date.now().toString() });
+          if (userName) {
+            queryParams.append("patient_id", userName);
+          }
+          const claimsListRes = await safeFetch(`${INGRESS_API}/claims?${queryParams.toString()}`, {
             cache: "no-store",
             headers: getAuthHeaders(),
           }, 3000);
@@ -191,6 +195,7 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
             const claims = claimsData.claims || claimsData.results || (Array.isArray(claimsData) ? claimsData : []);
             
             const matchingClaim = claims.find((c: any) => 
+              (!userName || (c.patient_id && c.patient_id.toLowerCase() === userName.toLowerCase())) &&
               c.documents && c.documents.some((d: any) => 
                 d.file_name && fileNames.includes(d.file_name.toLowerCase())
               )

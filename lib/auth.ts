@@ -155,7 +155,7 @@ function buildSession(tokenResponse: Record<string, unknown>, hintedRole?: strin
     role: normalizeRole(roles, hintedRole),
     user: {
       email: String(accessPayload.email || accessPayload.preferred_username || ''),
-      name: String(accessPayload.name || accessPayload.given_name || accessPayload.preferred_username || 'ClaimGPT user'),
+      name: String(accessPayload.name || accessPayload.given_name || accessPayload.preferred_username || 'ClaimsGuru user'),
       preferredUsername: String(accessPayload.preferred_username || ''),
     },
   };

@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { useRouter } from 'next/navigation';
+import logoMark from './ClaimsGuru Mark.png';
+import fullLogo from './ClaimsGuru Black PNG.png';
 import { clearAuthSession } from '@/lib/auth';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 
@@ -85,7 +87,7 @@ export function HamburgerMenuDrawer({
       divider: 'border-cyan-500/20',
       closeBtn: 'text-cyan-300 hover:bg-cyan-500/20 hover:text-white',
       footerBg: 'bg-[#0e1626] border-t border-cyan-500/20 text-cyan-300/70',
-      brandTitle: 'ClaimGPT',
+      brandTitle: 'ClaimsGuru',
     },
     clinical: {
       drawerBg: 'bg-white border-r border-slate-200 text-slate-900 shadow-2xl',
@@ -102,7 +104,7 @@ export function HamburgerMenuDrawer({
       divider: 'border-slate-200',
       closeBtn: 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
       footerBg: 'bg-slate-50 border-t border-slate-200 text-slate-500',
-      brandTitle: 'ClaimGPT',
+      brandTitle: 'ClaimsGuru',
     },
     executive: {
       drawerBg: 'bg-[#060b18] border-r border-amber-500/30 text-amber-50 shadow-[0_0_50px_rgba(245,158,11,0.15)]',
@@ -119,7 +121,7 @@ export function HamburgerMenuDrawer({
       divider: 'border-amber-500/20',
       closeBtn: 'text-amber-300 hover:bg-amber-500/20 hover:text-white',
       footerBg: 'bg-[#0d1527] border-t border-amber-500/20 text-amber-300/70',
-      brandTitle: 'ClaimGPT',
+      brandTitle: 'ClaimsGuru',
     },
   }[variant];
 
@@ -137,15 +139,12 @@ export function HamburgerMenuDrawer({
         {/* Drawer Header */}
         <div className={`p-5 flex items-center justify-between ${themeStyles.headerBg}`}>
           <div className="flex items-center gap-3">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-xl font-bold ${themeStyles.brandIcon}`}>
-              {variant === 'executive' ? <Crown className="h-5 w-5 fill-slate-950" /> : variant === 'neon' ? <Zap className="h-5 w-5 fill-white" /> : <ShieldCheck className="h-5 w-5" />}
-            </div>
-            <div>
-              <h2 className="text-base font-bold tracking-tight flex items-center gap-1.5">
-                {themeStyles.brandTitle} <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${themeStyles.brandTag}`}>PRO</span>
-              </h2>
-              <p className={`text-[11px] ${themeStyles.subtitle}`}>AI Medical Auditor</p>
-            </div>
+            <img 
+              src={fullLogo.src} 
+              className="h-7 w-auto" 
+              alt="ClaimsGuru Logo" 
+            />
+            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${themeStyles.brandTag}`}>PRO</span>
           </div>
 
           <button
@@ -244,7 +243,7 @@ export function HamburgerMenuDrawer({
 
         {/* Drawer Footer */}
         <div className={`p-4 text-[11px] flex items-center justify-between ${themeStyles.footerBg}`}>
-          <span>ClaimGPT v2.4</span>
+          <span>ClaimsGuru v2.4</span>
           <span className="flex items-center gap-1 font-bold text-emerald-600">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Online
           </span>

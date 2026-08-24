@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import logoMark from './ClaimsGuru Mark.png';
 import {
   CheckCircle2,
   Eye,
@@ -209,8 +210,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         {/* Modal Header Bar */}
         <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-3.5 sm:px-6 py-3 backdrop-blur-md">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 flex-none items-center justify-center rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
-              <ShieldCheck className="h-4 sm:h-5 w-4 sm:w-5" />
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 flex-none items-center justify-center rounded-xl bg-teal-500/20 border border-teal-500/30">
+              <img src={logoMark.src} className="h-4 sm:h-5 w-auto" style={{ filter: 'brightness(0) invert(1)' }} alt="ClaimsGuru" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
