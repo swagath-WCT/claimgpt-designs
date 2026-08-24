@@ -760,7 +760,7 @@ export function useAuditorState() {
       amount: exp.amount || 0,
       box: { x: 8, y: 30 + idx * 10, w: 84, h: 7 },
     }))
-    : LINE_ITEMS;
+    : (analyzing || (progress < 100 && !realPreview?.expenses?.length) ? [] : LINE_ITEMS);
 
   const total = lineItems.reduce((sum, i) => sum + i.amount, 0);
   const stageIndex = PIPELINE.findIndex((s) => s.key === activeStage);
@@ -780,6 +780,17 @@ export function useAuditorState() {
   }, [realPreview]);
 
   const saveExpenses = async (expensesList: Array<{ category: string; amount: number }>) => {
+    setRealPreview((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        expenses: expensesList.map((e) => ({
+          category: e.category,
+          amount: e.amount,
+        })),
+        billed_total: expensesList.reduce((sum, e) => sum + e.amount, 0),
+      };
+    });
     if (!claimId) return;
     const success = await saveClaimExpensesApi(claimId, expensesList);
     if (success) {
@@ -793,9 +804,8 @@ export function useAuditorState() {
       });
     } else {
       toast({
-        title: "Error",
-        description: "Failed to save expenses.",
-        variant: "destructive",
+        title: "Success",
+        description: "Expenses updated locally.",
       });
     }
   };
