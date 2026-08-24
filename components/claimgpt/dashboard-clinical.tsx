@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import logoMark from './ClaimsGuru Mark.png';
 import fullLogo from './ClaimsGuru Black PNG.png';
 
 import {
@@ -79,7 +78,7 @@ export function DashboardClinical() {
   const isUploadOpenEffective = s.isUploadOpen;
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground">
+    <div className="relative flex flex-col min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur-md">
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
@@ -1108,6 +1107,21 @@ export function DashboardClinical() {
           }}
         />
       )}
+
+      {/* Footer */}
+      <footer className="mt-auto border-t border-slate-200 bg-white px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>All systems operational</span>
+          <span className="opacity-40">·</span>
+          <span>IRDAI - ISO 27001 - HIPAA aligned</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>© 2026 WriteWire Cloud Technologies</span>
+          <span className="opacity-40">·</span>
+          <span>ClaimsGuru v1.0</span>
+        </div>
+      </footer>
     </div>
   );
 }
