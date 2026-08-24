@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import logoMark from './ClaimsGuru Mark.png';
+import logoMark from './ClaimsGuru White PNG.png';
 import {
   CheckCircle2,
   Eye,

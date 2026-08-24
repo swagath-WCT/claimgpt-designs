@@ -1117,7 +1117,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                     <Label htmlFor="org-agree" className="text-xs text-slate-600 leading-relaxed">
                       I agree to the <span className="font-semibold text-teal-700">Terms of Service</span>,{' '}
                       <span className="font-semibold text-teal-700">Privacy Policy</span>, and{' '}
-                      <span className="font-semibold text-teal-700">DPDP Act 2023</span> compliance terms.
+                      <span className="font-semibold text-teal-700">data protection</span> compliance terms.
                     </Label>
                   </div>
 

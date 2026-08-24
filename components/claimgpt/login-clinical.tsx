@@ -3,15 +3,13 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import logoMark from './ClaimsGuru Mark.png';
-import fullLogo from './ClaimsGuru Black PNG.png';
+import fullLogo from './ClaimsGuru White PNG.png';
 import {
   ArrowRight,
   Eye,
   EyeOff,
   Lock,
   Mail,
-  MapPin,
   ShieldCheck,
 } from 'lucide-react';
 import { authenticateWithPassword, getAuthErrorField, getAuthRedirectPath, type AuthErrorField } from '@/lib/auth';
@@ -232,12 +230,23 @@ export function LoginClinical() {
                   </Link>
                 )}
               </div>
-              <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5" />
-                <span aria-hidden>🇮🇳</span> IN · Mumbai
-              </div>
             </StaggerItem>
           </StaggerContainer>
+        </div>
+
+        {/* Footer */}
+        <div className="relative z-10 mt-auto border-t border-border/20 bg-background/50 backdrop-blur-sm px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>All systems operational</span>
+            <span className="opacity-40">·</span>
+            <span>IRDAI - ISO 27001 - HIPAA aligned</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>© 2026 WriteWire Cloud Technologies</span>
+            <span className="opacity-40">·</span>
+            <span>ClaimsGuru v1.0</span>
+          </div>
         </div>
       </div>
     </main>

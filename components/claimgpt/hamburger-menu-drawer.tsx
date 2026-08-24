@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { useRouter } from 'next/navigation';
-import logoMark from './ClaimsGuru Mark.png';
 import fullLogo from './ClaimsGuru Black PNG.png';
 import { clearAuthSession } from '@/lib/auth';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';

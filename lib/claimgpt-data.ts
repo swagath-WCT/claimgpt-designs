@@ -1,11 +1,10 @@
 export const FEATURES = [
-  '74,736 ICD-10-CM codes via on-prem RAG',
+  'Around 14,000 ICD codes via on-prem RAG',
   'SLA-tracked processing queue',
   '14 Indian languages supported',
-  'Data residency: Mumbai region',
 ];
 
-export const TRUST_BADGES = ['IRDAI', 'ISO 27001', 'DPDP 2023', 'HIPAA-aligned'];
+export const TRUST_BADGES = ['IRDAI', 'ISO 27001', 'HIPAA-aligned'];
 
 export const INSURERS = [
   'Star Health',
