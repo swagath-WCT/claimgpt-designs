@@ -101,3 +101,66 @@ export function formatINR(amount: number): string {
     maximumFractionDigits: 0,
   }).format(amount);
 }
+
+export function formatDob(rawDob?: string | null): string {
+  if (!rawDob || !rawDob.trim()) return '01 Jan 2000';
+  const clean = rawDob.trim();
+
+  // If already like "19 Aug 1990" or "01 Jan 2000"
+  if (/^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}$/.test(clean)) return clean;
+
+  // If 8 digits e.g. "01012000" (DDMMYYYY) or "20000101" (YYYYMMDD)
+  if (/^\d{8}$/.test(clean)) {
+    const first4 = parseInt(clean.slice(0, 4), 10);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (first4 >= 1900 && first4 <= 2099) {
+      const y = clean.slice(0, 4);
+      const m = parseInt(clean.slice(4, 6), 10) - 1;
+      const d = clean.slice(6, 8);
+      if (m >= 0 && m < 12) {
+        return `${d.padStart(2, '0')} ${months[m]} ${y}`;
+      }
+    } else {
+      const d = clean.slice(0, 2);
+      const m = parseInt(clean.slice(2, 4), 10) - 1;
+      const y = clean.slice(4, 8);
+      if (m >= 0 && m < 12) {
+        return `${d.padStart(2, '0')} ${months[m]} ${y}`;
+      }
+    }
+  }
+
+  // If DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const ddmmyyyy = clean.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (ddmmyyyy) {
+    const d = ddmmyyyy[1].padStart(2, '0');
+    const m = parseInt(ddmmyyyy[2], 10) - 1;
+    const y = ddmmyyyy[3];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (m >= 0 && m < 12) {
+      return `${d} ${months[m]} ${y}`;
+    }
+  }
+
+  // If YYYY-MM-DD
+  const yyyymmdd = clean.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (yyyymmdd) {
+    const y = yyyymmdd[1];
+    const m = parseInt(yyyymmdd[2], 10) - 1;
+    const d = yyyymmdd[3].padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (m >= 0 && m < 12) {
+      return `${d} ${months[m]} ${y}`;
+    }
+  }
+
+  // Fallback try Date parse
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) {
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d} ${months[parsed.getMonth()]} ${parsed.getFullYear()}`;
+  }
+
+  return clean;
+}

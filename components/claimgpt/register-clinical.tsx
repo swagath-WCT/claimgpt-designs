@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type AuthRole, registerAndSignIn } from '@/lib/auth';
@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { INSURERS } from '@/lib/claimgpt-data';
+import { INSURERS, formatDob } from '@/lib/claimgpt-data';
 import {
   AuroraBackground,
   GradientText,
@@ -43,8 +43,54 @@ export function RegisterClinical() {
   const role: AuthRole = 'patient';
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [gender, setGender] = useState('Male');
+  const [insurer, setInsurer] = useState('Star Health');
+  const [dobInput, setDobInput] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const datePickerRef = useRef<HTMLInputElement>(null);
+
+  const handleDobChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+    if (raw.length === 0) {
+      setDobInput('');
+      return;
+    }
+    let formatted = '';
+    if (raw.length <= 2) {
+      formatted = raw;
+    } else if (raw.length <= 4) {
+      formatted = `${raw.slice(0, 2)}/${raw.slice(2)}`;
+    } else {
+      formatted = `${raw.slice(0, 2)}/${raw.slice(2, 4)}/${raw.slice(4, 8)}`;
+    }
+    setDobInput(formatted);
+  };
+
+  const handleNativePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value; // "YYYY-MM-DD"
+    if (!val) return;
+    const parts = val.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts;
+      setDobInput(`${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`);
+    }
+  };
+
+  const openCalendarPicker = () => {
+    try {
+      if (datePickerRef.current) {
+        if ('showPicker' in HTMLInputElement.prototype) {
+          datePickerRef.current.showPicker();
+        } else {
+          datePickerRef.current.focus();
+        }
+      }
+    } catch {
+      datePickerRef.current?.click();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -64,7 +110,7 @@ export function RegisterClinical() {
     const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
     const policy = getValue('c-policy');
     const sumInsured = getValue('c-sumInsured');
-    const dob = getValue('c-dob');
+    const dob = dobInput || getValue('c-dob');
 
     if (!email || !password || !confirmPassword) {
       setErrorMessage('Please enter your email address and password.');
@@ -84,14 +130,33 @@ export function RegisterClinical() {
         new TextEncoder().encode(password),
       ).then((digest) => Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join(''));
 
+      const formattedDob = formatDob(dob);
+
+      try {
+        localStorage.setItem(`claimgpt_user_dob_${email}`, formattedDob);
+        localStorage.setItem('claimgpt_user_dob', formattedDob);
+        localStorage.setItem(`claimgpt_user_gender_${email}`, gender || 'Male');
+        localStorage.setItem('claimgpt_user_gender', gender || 'Male');
+        localStorage.setItem(`claimgpt_user_insurer_${email}`, insurer || 'Star Health');
+        localStorage.setItem('claimgpt_user_insurer', insurer || 'Star Health');
+        localStorage.setItem(`claimgpt_user_policy_${email}`, policy || 'P-0007401');
+        localStorage.setItem('claimgpt_user_policy', policy || 'P-0007401');
+        localStorage.setItem(`claimgpt_user_sum_${email}`, sumInsured || '5000000');
+        localStorage.setItem('claimgpt_user_sum', sumInsured || '5000000');
+        localStorage.setItem(`claimgpt_user_name_${email}`, fullName);
+        localStorage.setItem('claimgpt_user_name', fullName);
+      } catch {
+        /* ignore localStorage error */
+      }
+
       const payload: Record<string, unknown> = {
         username: email,
         password_hash: `sha256$${passwordHash}`,
         role,
         first_name: firstName || undefined,
         last_name: lastName || undefined,
-        dob: dob || undefined,
-        gender: undefined,
+        dob: formattedDob || undefined,
+        gender: gender || undefined,
         policy: policy || undefined,
         sum_insured: sumInsured || undefined,
       };
@@ -183,21 +248,47 @@ export function RegisterClinical() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="c-dob">Date of Birth</Label>
-                      <div className="relative">
-                        <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input id="c-dob" type="text" placeholder="DD/MM/YYYY" className="h-11 pl-10" required />
+                      <div className="relative flex items-center">
+                        <Input
+                          id="c-dob"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="DD/MM/YYYY"
+                          value={dobInput}
+                          onChange={handleDobChange}
+                          maxLength={10}
+                          className="h-11 pl-3.5 pr-10 font-medium tracking-wide"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={openCalendarPicker}
+                          title="Open Calendar Picker"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-all hover:bg-slate-100 hover:text-teal-600 active:scale-95"
+                        >
+                          <Calendar className="h-4 w-4" />
+                        </button>
+                        <input
+                          ref={datePickerRef}
+                          type="date"
+                          max={new Date().toISOString().split('T')[0]}
+                          onChange={handleNativePickerChange}
+                          tabIndex={-1}
+                          className="sr-only absolute pointer-events-none opacity-0"
+                          aria-hidden="true"
+                        />
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Gender</Label>
-                      <Select required>
+                      <Select value={gender} onValueChange={setGender}>
                         <SelectTrigger className="h-11">
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -218,13 +309,13 @@ export function RegisterClinical() {
                     </div>
                     <div className="space-y-2">
                       <Label>Insurer Provider</Label>
-                      <Select required>
+                      <Select value={insurer} onValueChange={setInsurer}>
                         <SelectTrigger className="h-11">
                           <SelectValue placeholder="Select insurer" />
                         </SelectTrigger>
                         <SelectContent>
                           {INSURERS.map((ins) => (
-                            <SelectItem key={ins} value={ins.toLowerCase().replace(/\s+/g, '-')}>
+                            <SelectItem key={ins} value={ins}>
                               {ins}
                             </SelectItem>
                           ))}
