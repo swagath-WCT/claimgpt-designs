@@ -1117,7 +1117,7 @@ export function DashboardClinical() {
           <span>IRDAI - ISO 27001 - HIPAA aligned</span>
         </div>
         <div className="flex items-center gap-2">
-          <span>© 2026 WriteWire Cloud Technologies</span>
+          <span>© 2026 WaferWire Cloud Technologies</span>
           <span className="opacity-40">·</span>
           <span>ClaimsGuru v1.0</span>
         </div>
