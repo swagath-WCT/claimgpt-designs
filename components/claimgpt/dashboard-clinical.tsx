@@ -52,6 +52,7 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 import { cn } from '@/lib/utils';
+import { formatClaimTime, formatClaimAge } from '@/lib/claimgpt-data';
 
 export function DashboardClinical() {
   const s = useAuditorState();
@@ -206,12 +207,12 @@ export function DashboardClinical() {
                                 #{shortId || "CLM001"}
                               </span>
                               <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                                11 Aug 04:04 PM
+                                {formatClaimTime(claim.created_at)}
                               </span>
                             </div>
                             <div className="flex items-center gap-1 flex-none">
                               <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[9px] font-bold">
-                                0m
+                                {formatClaimAge(claim.created_at)}
                               </span>
                               <span
                                 role="button"

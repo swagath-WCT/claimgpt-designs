@@ -144,10 +144,14 @@ export function DocumentViewer({
     setPageIndex(0);
   }, [activeDocumentId, serializedDocIds]);
 
+  useEffect(() => {
+    setImgError(false);
+  }, [claimId, activeDocumentId, selectedDocId, pageIndex]);
+
   const selectedKey = activeDocumentId || selectedDocId;
   const activeDoc = effectiveDocs.find((d, index) => getDocKey(d, index) === selectedKey) || effectiveDocs[0];
   const pageUrls = activeDoc?.pages || [];
-  const currentPageUrl = pageUrls[pageIndex] ? `http://localhost:8000/ingress${pageUrls[pageIndex]}` : null;
+  const currentPageUrl = pageUrls[pageIndex] ? `${INGRESS_API}${pageUrls[pageIndex]}` : null;
   const pageCount = activeDoc?.page_count || pageUrls.length || 1;
 
   const containerRef = useRef<HTMLDivElement>(null);

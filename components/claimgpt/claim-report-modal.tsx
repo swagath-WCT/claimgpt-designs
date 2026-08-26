@@ -242,10 +242,9 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         
         {/* Modal Header Bar */}
         <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-3.5 sm:px-6 py-3 backdrop-blur-md">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 flex-none items-center justify-center rounded-xl bg-teal-500/20 border border-teal-500/30">
-              <img src={logoMark.src} className="h-4 sm:h-5 w-auto" style={{ filter: 'brightness(0) invert(1)' }} alt="ClaimsGuru" />
-            </div>
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <img src={logoMark.src} className="h-6 sm:h-7 w-auto object-contain flex-none" alt="ClaimsGuru" />
+            <div className="h-4 w-px bg-white/20 flex-none hidden xs:block" />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h2 className="text-xs sm:text-base font-bold text-white tracking-tight">AI Audit &amp; Claim Report</h2>

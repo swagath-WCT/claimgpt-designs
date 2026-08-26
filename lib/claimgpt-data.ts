@@ -164,3 +164,34 @@ export function formatDob(rawDob?: string | null): string {
 
   return clean;
 }
+
+export function formatClaimTime(createdAt?: string | null): string {
+  if (!createdAt) {
+    const now = new Date();
+    const day = now.getDate();
+    const month = now.toLocaleString('en-US', { month: 'short' });
+    const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return `${day} ${month} ${time}`;
+  }
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return 'Just now';
+  const day = d.getDate();
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${day} ${month} ${time}`;
+}
+
+export function formatClaimAge(createdAt?: string | null): string {
+  if (!createdAt) return '0m';
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return '0m';
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return '0m';
+  const diffMin = Math.floor(diffMs / (1000 * 60));
+  if (diffMin < 60) return `${diffMin}m`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h`;
+  const diffDays = Math.floor(diffHrs / 24);
+  return `${diffDays}d`;
+}
+
