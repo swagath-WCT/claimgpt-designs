@@ -50,22 +50,34 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const [diagnosis, setDiagnosis] = useState(s.diagnosis || 'N/A');
   const [billedAmount, setBilledAmount] = useState<number>(s.total || 0);
   const [detailsSaved, setDetailsSaved] = useState(false);
+  const [isDetailsDirty, setIsDetailsDirty] = useState(false);
 
   // Editable Expenses State
   const [expenses, setExpenses] = useState<ExpenseItem[]>(
     s.lineItems.map((li, i) => ({ id: li.id ? String(li.id) : `exp-${i}`, category: li.category, amount: li.amount }))
   );
   const [expensesSaved, setExpensesSaved] = useState(false);
+  const [isExpensesDirty, setIsExpensesDirty] = useState(false);
 
 
   const preview = s.realPreview;
   const summary = preview?.summary;
+  const lastInitializedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!s.showReportModal) {
       setInlinePdf(null);
+      lastInitializedKeyRef.current = null;
       return;
     }
+
+    const claimKey = `${s.claimId || 'default'}-${s.previewVersion || 0}`;
+    if (lastInitializedKeyRef.current === claimKey) {
+      return; // Already initialized for this claim session; preserve active user edits
+    }
+    lastInitializedKeyRef.current = claimKey;
+    setIsDetailsDirty(false);
+    setIsExpensesDirty(false);
 
     setPatientName(summary?.patient_name || s.patientName || 'Patient');
     setHospitalName(summary?.hospital || s.hospitalName || 'Hospital');
@@ -76,38 +88,37 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     const billed = preview?.billed_total ?? Number(summary?.total_amount ?? NaN);
     setBilledAmount(Number.isFinite(billed) ? Number(billed) : s.total || 0);
 
-    setExpenses(
-      preview?.expenses?.length
-        ? preview.expenses.map((item, index) => ({
-            id: String(index + 1),
-            category: item.category || `Expense ${index + 1}`,
+    const initialExpenses: ExpenseItem[] = preview?.expenses?.length
+      ? preview.expenses.map((item, index) => ({
+          id: `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          category: item.category || `Expense ${index + 1}`,
+          amount: Number(item.amount) || 0,
+        }))
+      : s.lineItems?.length
+        ? s.lineItems.map((item, index) => ({
+            id: item.id ? String(item.id) : `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            category: item.category,
             amount: Number(item.amount) || 0,
           }))
-        : s.lineItems?.length
-          ? s.lineItems.map(item => ({ id: String(item.id), category: item.category, amount: item.amount }))
-          : [
-              { id: '1', category: 'Pharmacy & Supplies', amount: 8500 },
-              { id: '2', category: 'Emergency Room Charges', amount: 12000 },
-              { id: '3', category: 'Laboratory Diagnostics', amount: 4500 },
-            ]
-    );
+        : [
+            { id: '1', category: 'Pharmacy & Supplies', amount: 8500 },
+            { id: '2', category: 'Emergency Room Charges', amount: 12000 },
+            { id: '3', category: 'Laboratory Diagnostics', amount: 4500 },
+          ];
+
+    setExpenses(initialExpenses);
   }, [
     s.showReportModal,
     s.claimId,
+    s.previewVersion,
     s.patientName,
     s.hospitalName,
     s.admissionDate,
     s.dischargeDate,
     s.diagnosis,
     s.total,
-    s.lineItems,
+    summary,
     preview,
-    summary?.patient_name,
-    summary?.hospital,
-    summary?.admission_date,
-    summary?.discharge_date,
-    summary?.diagnosis,
-    summary?.total_amount,
   ]);
 
   // Medical Codes (Read-Only)
@@ -179,27 +190,49 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       diagnosis: diagnosis
     });
     setDetailsSaved(true);
-    setTimeout(() => setDetailsSaved(false), 2500);
+    setIsDetailsDirty(false);
+    setTimeout(() => setDetailsSaved(false), 2200);
   };
 
   const handleSaveExpenses = async () => {
-    await s.saveExpenses(expenses.map(e => ({ category: e.category, amount: e.amount })));
+    const sanitized = expenses
+      .filter(e => e.category.trim() !== '' || e.amount > 0)
+      .map(e => ({
+        category: e.category.trim() || 'General Expense',
+        amount: Number(e.amount) || 0,
+      }));
+    await s.saveExpenses(sanitized);
     setExpensesSaved(true);
-    setTimeout(() => setExpensesSaved(false), 2500);
+    setIsExpensesDirty(false);
+    setTimeout(() => setExpensesSaved(false), 2200);
   };
 
   const handleAddExpense = () => {
-    setExpenses(prev => [...prev, { id: String(Date.now()), category: 'General Medical Supply', amount: 1500 }]);
+    const newId = `new-exp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    setExpenses(prev => [
+      ...prev,
+      { id: newId, category: '', amount: 0 },
+    ]);
+    setIsExpensesDirty(true);
   };
 
   const handleRemoveExpense = (id: string) => {
     setExpenses(prev => prev.filter(item => item.id !== id));
+    setIsExpensesDirty(true);
   };
 
-  const handleExpenseChange = (id: string, field: 'category' | 'amount', value: string | number) => {
+  const handleExpenseChange = (id: string, field: 'category' | 'amount', value: string) => {
     setExpenses(prev =>
-      prev.map(item => (item.id === id ? { ...item, [field]: field === 'amount' ? Number(value) || 0 : value } : item))
+      prev.map(item => {
+        if (item.id !== id) return item;
+        if (field === 'amount') {
+          const numVal = parseFloat(value.replace(/[^0-9.]/g, ''));
+          return { ...item, amount: isNaN(numVal) ? 0 : numVal };
+        }
+        return { ...item, category: value };
+      })
     );
+    setIsExpensesDirty(true);
   };
 
   return (
@@ -209,10 +242,9 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         
         {/* Modal Header Bar */}
         <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-3.5 sm:px-6 py-3 backdrop-blur-md">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 flex-none items-center justify-center rounded-xl bg-teal-500/20 border border-teal-500/30">
-              <img src={logoMark.src} className="h-4 sm:h-5 w-auto" style={{ filter: 'brightness(0) invert(1)' }} alt="ClaimsGuru" />
-            </div>
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <img src={logoMark.src} className="h-6 sm:h-7 w-auto object-contain flex-none" alt="ClaimsGuru" />
+            <div className="h-4 w-px bg-white/20 flex-none hidden xs:block" />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h2 className="text-xs sm:text-base font-bold text-white tracking-tight">AI Audit &amp; Claim Report</h2>
@@ -306,7 +338,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <button
                 type="button"
                 onClick={handleSaveDetails}
-                className="inline-flex items-center gap-1 rounded-lg bg-teal-500 hover:bg-teal-400 px-3 py-1 text-[11px] font-bold text-slate-950 transition-all shadow-sm"
+                disabled={!isDetailsDirty && !detailsSaved}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold transition-all shadow-sm",
+                  detailsSaved
+                    ? "bg-emerald-500 text-slate-950 cursor-default"
+                    : isDetailsDirty
+                      ? "bg-teal-500 hover:bg-teal-400 text-slate-950 cursor-pointer shadow-teal-500/20 ring-1 ring-teal-400/50"
+                      : "bg-slate-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-60"
+                )}
               >
                 <Save className="h-3 w-3" />
                 {detailsSaved ? 'Saved! ✓' : 'Save Details'}
@@ -319,7 +359,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <input
                   type="text"
                   value={patientName}
-                  onChange={e => setPatientName(e.target.value)}
+                  onChange={e => {
+                    setPatientName(e.target.value);
+                    setIsDetailsDirty(true);
+                  }}
                   className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-teal-400 transition-colors"
                 />
               </div>
@@ -329,7 +372,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <input
                   type="text"
                   value={hospitalName}
-                  onChange={e => setHospitalName(e.target.value)}
+                  onChange={e => {
+                    setHospitalName(e.target.value);
+                    setIsDetailsDirty(true);
+                  }}
                   className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 focus:outline-none focus:border-teal-400 transition-colors"
                 />
               </div>
@@ -341,7 +387,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   <input
                     type="number"
                     value={billedAmount}
-                    onChange={e => setBilledAmount(Number(e.target.value) || 0)}
+                    onChange={e => {
+                      setBilledAmount(Number(e.target.value) || 0);
+                      setIsDetailsDirty(true);
+                    }}
                     className="w-full rounded-xl bg-slate-900 border border-white/10 pl-7 pr-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-teal-400 transition-colors"
                   />
                 </div>
@@ -352,7 +401,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <input
                   type="text"
                   value={admissionDate}
-                  onChange={e => setAdmissionDate(e.target.value)}
+                  onChange={e => {
+                    setAdmissionDate(e.target.value);
+                    setIsDetailsDirty(true);
+                  }}
                   className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 focus:outline-none focus:border-teal-400 transition-colors"
                 />
               </div>
@@ -362,7 +414,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <input
                   type="text"
                   value={dischargeDate}
-                  onChange={e => setDischargeDate(e.target.value)}
+                  onChange={e => {
+                    setDischargeDate(e.target.value);
+                    setIsDetailsDirty(true);
+                  }}
                   className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 focus:outline-none focus:border-teal-400 transition-colors"
                 />
               </div>
@@ -372,7 +427,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <input
                   type="text"
                   value={diagnosis}
-                  onChange={e => setDiagnosis(e.target.value)}
+                  onChange={e => {
+                    setDiagnosis(e.target.value);
+                    setIsDetailsDirty(true);
+                  }}
                   className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-teal-300 focus:outline-none focus:border-teal-400 transition-colors"
                 />
               </div>
@@ -397,7 +455,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <button
                   type="button"
                   onClick={handleSaveExpenses}
-                  className="inline-flex items-center gap-1 rounded-lg bg-teal-500 hover:bg-teal-400 px-3 py-1 text-[11px] font-bold text-slate-950 transition-all shadow-sm"
+                  disabled={!isExpensesDirty && !expensesSaved}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold transition-all shadow-sm",
+                    expensesSaved
+                      ? "bg-emerald-500 text-slate-950 cursor-default"
+                      : isExpensesDirty
+                        ? "bg-teal-500 hover:bg-teal-400 text-slate-950 cursor-pointer shadow-teal-500/20 ring-1 ring-teal-400/50"
+                        : "bg-slate-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-60"
+                  )}
                 >
                   <Save className="h-3 w-3" />
                   {expensesSaved ? 'Saved! ✓' : 'Save Expenses'}

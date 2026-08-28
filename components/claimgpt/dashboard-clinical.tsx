@@ -52,10 +52,37 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 import { cn } from '@/lib/utils';
+import { formatClaimTime, formatClaimAge } from '@/lib/claimgpt-data';
 
 export function DashboardClinical() {
   const s = useAuditorState();
   const [claimToDelete, setClaimToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  const filteredClaims = s.recentClaims.filter((claim) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    const rawId = (claim.id || "").toLowerCase();
+    const shortId = rawId.replace(/-/g, "");
+    const patientName = (claim.patient_name || "").toLowerCase();
+    const hospitalName = (claim.hospital_name || "").toLowerCase();
+    const diagnosis = (claim.diagnosis || "").toLowerCase();
+    const policyId = (claim.policy_id || "").toLowerCase();
+    const patientId = (claim.patient_id || "").toLowerCase();
+    const docNames = (claim.documents || []).map((d: any) => (d.file_name || d.display_title || "").toLowerCase()).join(" ");
+
+    return (
+      rawId.includes(q) ||
+      shortId.includes(q) ||
+      patientName.includes(q) ||
+      hospitalName.includes(q) ||
+      diagnosis.includes(q) ||
+      policyId.includes(q) ||
+      patientId.includes(q) ||
+      docNames.includes(q)
+    );
+  });
 
   const processingInList = s.recentClaims.filter((c) => {
     const st = (c.status || "").toUpperCase();
@@ -91,7 +118,83 @@ export function DashboardClinical() {
           </div>
           <div className="relative ml-4 hidden flex-1 max-w-md md:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search claims, hospital bills, ICD-10 codes…" className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => {
+                setTimeout(() => setIsSearchFocused(false), 200);
+              }}
+              placeholder="Search claims, hospital bills, ICD-10 codes…"
+              className="h-10 border-slate-200 bg-slate-50 pl-10 pr-9 text-sm focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-teal-500 rounded-xl transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
+                title="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            {/* Quick Match Results Dropdown when focused & typing */}
+            {isSearchFocused && searchQuery.trim() && (
+              <div 
+                className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-100 max-h-80 overflow-y-auto"
+                onMouseDown={(e) => e.preventDefault()}
+              >
+                <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Matching Claims ({filteredClaims.length})</span>
+                  {filteredClaims.length > 0 && <span className="text-[10px] text-teal-600 font-normal">Click to audit</span>}
+                </div>
+                {filteredClaims.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500">
+                    No claims found for &ldquo;<span className="font-semibold text-slate-700">{searchQuery}</span>&rdquo;
+                  </div>
+                ) : (
+                  filteredClaims.map((c) => {
+                    const cShortId = (c.id || "").replace(/-/g, "").slice(-8).toUpperCase();
+                    const isSelected = c.id === s.claimId;
+                    return (
+                      <div
+                        key={c.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          s.selectClaim(c.id);
+                          setIsSearchFocused(false);
+                        }}
+                        className={cn(
+                          "flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors",
+                          isSelected ? "bg-teal-50 text-teal-900 border border-teal-200" : "hover:bg-slate-100 text-slate-800"
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 font-semibold truncate">
+                            <span>{c.patient_name || `Claim #${cShortId}`}</span>
+                            <span className="text-[10px] font-mono text-slate-400">#{cShortId}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {c.documents?.[0]?.file_name || c.hospital_name || c.diagnosis || "Medical Claim Document"}
+                          </div>
+                        </div>
+                        <div className="flex-none flex items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatClaimTime(c.created_at)}</span>
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
+                            c.status === "COMPLETED" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
+                          )}>
+                            {c.status || "COMPLETED"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <span className="hidden items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 sm:inline-flex">
@@ -143,14 +246,39 @@ export function DashboardClinical() {
                       <p className="text-[10px] text-muted-foreground">Select claim to audit</p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent">
-                    {s.recentClaims.length || (s.claimId ? 1 : 0)}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {searchQuery.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="text-[10px] text-teal-600 hover:text-teal-800 font-semibold cursor-pointer underline mr-0.5"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent">
+                      {searchQuery.trim() ? `${filteredClaims.length}/${s.recentClaims.length}` : (s.recentClaims.length || (s.claimId ? 1 : 0))}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-2 overflow-y-auto max-h-[720px] pr-1 scrollbar-thin">
-                  {s.recentClaims.length === 0 ? (
-                    s.claimId ? (
+                  {filteredClaims.length === 0 ? (
+                    searchQuery.trim() && s.recentClaims.length > 0 ? (
+                      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-slate-50/80 p-5 text-center my-1">
+                        <p className="text-xs font-bold text-slate-700">No Matching Claims</p>
+                        <p className="text-[10px] text-slate-500 mt-1 max-w-[150px] leading-tight">
+                          No claims match &ldquo;{searchQuery}&rdquo;.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="mt-2 text-[11px] font-semibold text-teal-600 hover:text-teal-700 underline cursor-pointer"
+                        >
+                          Clear Filter
+                        </button>
+                      </div>
+                    ) : s.claimId ? (
                       <button
                         type="button"
                         onClick={() => s.selectClaim(s.claimId || "")}
@@ -176,7 +304,7 @@ export function DashboardClinical() {
                       </div>
                     )
                   ) : (
-                    s.recentClaims.map((claim) => {
+                    filteredClaims.map((claim) => {
                       const isSelected = claim.id === s.claimId;
                       const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                       const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
@@ -206,12 +334,12 @@ export function DashboardClinical() {
                                 #{shortId || "CLM001"}
                               </span>
                               <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                                11 Aug 04:04 PM
+                                {formatClaimTime(claim.created_at)}
                               </span>
                             </div>
                             <div className="flex items-center gap-1 flex-none">
                               <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[9px] font-bold">
-                                0m
+                                {formatClaimAge(claim.created_at)}
                               </span>
                               <span
                                 role="button"
@@ -490,14 +618,30 @@ export function DashboardClinical() {
                         </div>
                         <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Processed Claims History</h3>
                       </div>
-                      <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent">
-                        {s.recentClaims.length || 1} Claims
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {searchQuery.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="text-[10px] text-teal-600 hover:text-teal-800 font-semibold cursor-pointer underline mr-0.5"
+                          >
+                            Clear
+                          </button>
+                        )}
+                        <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent">
+                          {searchQuery.trim() ? `${filteredClaims.length}/${s.recentClaims.length}` : (s.recentClaims.length || 1)} Claims
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin snap-x">
-                      {s.recentClaims.length === 0 ? (
-                        s.claimId ? (
+                      {filteredClaims.length === 0 ? (
+                        searchQuery.trim() && s.recentClaims.length > 0 ? (
+                          <div className="flex items-center gap-2 py-2 px-3 rounded-lg border border-dashed text-xs text-slate-500">
+                            <span>No claims match &ldquo;{searchQuery}&rdquo;</span>
+                            <button type="button" onClick={() => setSearchQuery('')} className="text-teal-600 font-semibold underline cursor-pointer">Clear</button>
+                          </div>
+                        ) : s.claimId ? (
                           <button
                             type="button"
                             onClick={() => s.selectClaim(s.claimId || "")}
@@ -515,7 +659,7 @@ export function DashboardClinical() {
                           <p className="text-xs text-muted-foreground italic py-1 px-1">No uploaded claims present</p>
                         )
                       ) : (
-                      s.recentClaims.map((claim) => {
+                      filteredClaims.map((claim) => {
                         const isSelected = claim.id === s.claimId;
                         const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                         const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
@@ -959,7 +1103,14 @@ export function DashboardClinical() {
                             <MetaField id="c-diagnosis" label="Diagnosis" defaultValue={s.diagnosis} edited={!!s.edited['diagnosis']} onEdit={() => s.markEdited('diagnosis')} className="sm:col-span-2" />
                           </div>
                           <div className="border-t border-border px-5 py-3 flex-1 flex flex-col min-h-0 overflow-hidden">
-                            <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Categorized Expenses</h3>
+                            <div className="mb-2 flex items-center justify-between">
+                              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Categorized Expenses</h3>
+                              {(s.analyzing || (s.progress < 100 && !s.realPreview?.expenses?.length)) && (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-600">
+                                  <Loader2 className="h-3 w-3 animate-spin" /> Processing...
+                                </span>
+                              )}
+                            </div>
                             <div className="overflow-hidden rounded-lg border border-border flex-1 flex flex-col min-h-0">
                               <div className="overflow-y-auto scrollbar-thin flex-1 h-full">
                                 <table className="w-full text-sm">
@@ -971,19 +1122,46 @@ export function DashboardClinical() {
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-border">
-                                    {s.lineItems.map((item) => (
-                                      <tr key={item.id} onMouseEnter={() => s.setHoveredField(item.id)} onMouseLeave={() => s.setHoveredField(null)} className={cn('cursor-pointer transition-colors', s.hoveredField === item.id ? 'bg-accent/5' : 'hover:bg-slate-50')}>
-                                        <td className="px-3 py-2 font-medium text-foreground">{item.category}</td>
-                                        <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">{item.description}</td>
-                                        <td className="px-3 py-2 text-right font-medium text-foreground">{formatINR(item.amount)}</td>
-                                      </tr>
-                                    ))}
+                                    {s.analyzing || (s.progress < 100 && !s.realPreview?.expenses?.length) ? (
+                                      <>
+                                        {[1, 2, 3].map((rowIdx) => (
+                                          <tr key={`proc-exp-row-${rowIdx}`} className="bg-slate-50/50">
+                                            <td className="px-3 py-2.5 font-medium text-muted-foreground">
+                                              <div className="flex items-center gap-1.5">
+                                                <Loader2 className="h-3 w-3 animate-spin text-teal-600 shrink-0" />
+                                                <span className="text-xs italic text-muted-foreground">Processing...</span>
+                                              </div>
+                                            </td>
+                                            <td className="hidden px-3 py-2.5 text-muted-foreground sm:table-cell text-xs italic">
+                                              Processing...
+                                            </td>
+                                            <td className="px-3 py-2.5 text-right font-medium text-muted-foreground text-xs italic">
+                                              Processing...
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </>
+                                    ) : (
+                                      s.lineItems.map((item) => (
+                                        <tr key={item.id} onMouseEnter={() => s.setHoveredField(item.id)} onMouseLeave={() => s.setHoveredField(null)} className={cn('cursor-pointer transition-colors', s.hoveredField === item.id ? 'bg-accent/5' : 'hover:bg-slate-50')}>
+                                          <td className="px-3 py-2 font-medium text-foreground">{item.category}</td>
+                                          <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">{item.description}</td>
+                                          <td className="px-3 py-2 text-right font-medium text-foreground">{formatINR(item.amount)}</td>
+                                        </tr>
+                                      ))
+                                    )}
                                   </tbody>
                                   <tfoot className="sticky bottom-0 z-10 shadow-2xs bg-slate-50 border-t-2 border-border">
                                     <tr className="border-t-2 border-border bg-slate-50">
                                       <td className="px-3 py-2.5 font-bold text-foreground bg-slate-50">Total</td>
                                       <td className="hidden px-3 py-2.5 sm:table-cell bg-slate-50" />
-                                      <td className="px-3 py-2.5 text-right font-bold text-teal-700 bg-slate-50">{formatINR(s.total)}</td>
+                                      <td className="px-3 py-2.5 text-right font-bold text-teal-700 bg-slate-50">
+                                        {s.analyzing || (s.progress < 100 && !s.realPreview?.expenses?.length) ? (
+                                          <span className="text-xs italic text-muted-foreground font-normal">Processing...</span>
+                                        ) : (
+                                          formatINR(s.total)
+                                        )}
+                                      </td>
                                     </tr>
                                   </tfoot>
                                 </table>
@@ -1083,7 +1261,7 @@ export function DashboardClinical() {
           <span>IRDAI - ISO 27001 - HIPAA aligned</span>
         </div>
         <div className="flex items-center gap-2">
-          <span>© 2026 WriteWire Cloud Technologies</span>
+          <span>© 2026 WaferWire Cloud Technologies</span>
           <span className="opacity-40">·</span>
           <span>ClaimsGuru v1.0</span>
         </div>

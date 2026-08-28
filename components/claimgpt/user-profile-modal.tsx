@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { getStoredAuthSession, clearAuthSession } from '@/lib/auth';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
+import { formatDob } from '@/lib/claimgpt-data';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -45,7 +46,7 @@ export function UserProfileModal({
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [userMeta, setUserMeta] = useState({
-    dob: '19 Aug 1990',
+    dob: '01 Jan 2000',
     gender: 'Male',
     insurer: 'Star Health',
     policyNo: 'P-0007401',
@@ -72,22 +73,36 @@ export function UserProfileModal({
   useEffect(() => {
     try {
       const session = getStoredAuthSession();
-      const dob = localStorage.getItem('claimgpt_user_dob');
-      const insurer = localStorage.getItem('claimgpt_user_insurer');
-      const policy = localStorage.getItem('claimgpt_user_policy');
-      const sum = localStorage.getItem('claimgpt_user_sum');
-      const gender = localStorage.getItem('claimgpt_user_gender');
+      const currentEmail = userEmail || session?.user?.email || '';
+      const rawDob =
+        localStorage.getItem(`claimgpt_user_dob_${currentEmail}`) ||
+        localStorage.getItem('claimgpt_user_dob');
+      const insurer =
+        localStorage.getItem(`claimgpt_user_insurer_${currentEmail}`) ||
+        localStorage.getItem('claimgpt_user_insurer');
+      const policy =
+        localStorage.getItem(`claimgpt_user_policy_${currentEmail}`) ||
+        localStorage.getItem('claimgpt_user_policy');
+      const sum =
+        localStorage.getItem(`claimgpt_user_sum_${currentEmail}`) ||
+        localStorage.getItem('claimgpt_user_sum');
+      const gender =
+        localStorage.getItem(`claimgpt_user_gender_${currentEmail}`) ||
+        localStorage.getItem('claimgpt_user_gender');
+
       setUserMeta({
-        dob: dob || '19 Aug 1990',
+        dob: formatDob(rawDob || '01012000'),
         gender: gender || 'Male',
         insurer: insurer || (session?.role === 'tpa' ? 'TPA Adjuster Org' : 'Star Health'),
         policyNo: policy || (session?.role === 'tpa' ? 'TPA-90021' : 'P-0007401'),
-        sumInsured: sum ? `₹${Number(sum).toLocaleString('en-IN')}` : '₹5,000,000',
+        sumInsured: sum
+          ? (sum.startsWith('₹') ? sum : `₹${Number(sum).toLocaleString('en-IN')}`)
+          : '₹5,000,000',
       });
     } catch {
       /* ignore localStorage error */
     }
-  }, [isOpen]);
+  }, [isOpen, userEmail]);
 
   if (!isOpen) return null;
 

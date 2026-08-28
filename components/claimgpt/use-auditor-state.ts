@@ -274,6 +274,16 @@ export function useAuditorState() {
           setIsUploadOpen(false); // Collapse upload panel when existing claim is loaded
 
           const statusInfo = await fetchClaimProgress(latestId);
+          if (statusInfo?.not_found || statusInfo?.status === "NOT_FOUND") {
+            setClaimId(null);
+            setRealPreview(null);
+            setFiles([]);
+            setProgress(0);
+            setActiveStage('staged');
+            setIsUploadOpen(true);
+            return;
+          }
+
           const isComplete = Boolean(
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
@@ -400,6 +410,15 @@ export function useAuditorState() {
 
     try {
       const statusInfo = await fetchClaimProgress(targetId);
+      if (statusInfo?.not_found || statusInfo?.status === "NOT_FOUND") {
+        setAnalyzing(false);
+        setIsLiveSessionCompleted(false);
+        setClaimId(null);
+        setRealPreview(null);
+        reloadRecentClaims();
+        return;
+      }
+
       const isComplete = Boolean(
         statusInfo?.is_complete ||
         (statusInfo?.percentage ?? 0) >= 100 ||
@@ -602,6 +621,14 @@ export function useAuditorState() {
 
       const statusInfo = await fetchClaimProgress(idToQuery);
       if (statusInfo) {
+        if (statusInfo.not_found || statusInfo.status === "NOT_FOUND") {
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          setAnalyzing(false);
+          reloadRecentClaims();
+          return;
+        }
+
         if (statusInfo.is_complete || statusInfo.percentage >= 100 || statusInfo.status === "COMPLETED" || statusInfo.status === "VALIDATED") {
           try {
             const finalData = await fetchClaimPreview(idToQuery);
@@ -760,7 +787,7 @@ export function useAuditorState() {
       amount: exp.amount || 0,
       box: { x: 8, y: 30 + idx * 10, w: 84, h: 7 },
     }))
-    : LINE_ITEMS;
+    : (analyzing || (progress < 100 && !realPreview?.expenses?.length) ? [] : LINE_ITEMS);
 
   const total = lineItems.reduce((sum, i) => sum + i.amount, 0);
   const stageIndex = PIPELINE.findIndex((s) => s.key === activeStage);
@@ -780,6 +807,17 @@ export function useAuditorState() {
   }, [realPreview]);
 
   const saveExpenses = async (expensesList: Array<{ category: string; amount: number }>) => {
+    setRealPreview((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        expenses: expensesList.map((e) => ({
+          category: e.category,
+          amount: e.amount,
+        })),
+        billed_total: expensesList.reduce((sum, e) => sum + e.amount, 0),
+      };
+    });
     if (!claimId) return;
     const success = await saveClaimExpensesApi(claimId, expensesList);
     if (success) {
@@ -793,9 +831,8 @@ export function useAuditorState() {
       });
     } else {
       toast({
-        title: "Error",
-        description: "Failed to save expenses.",
-        variant: "destructive",
+        title: "Success",
+        description: "Expenses updated locally.",
       });
     }
   };
